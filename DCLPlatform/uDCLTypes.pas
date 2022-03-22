@@ -6,7 +6,7 @@ interface
 Uses
   Controls,
   StdCtrls, ComCtrls, Buttons,
-{$IFDEF NEWDELPHI}
+{$IFnDEF FPC}
   Vcl.DBCtrls, Vcl.DBGrids,
 {$ELSE}
   DBCtrls, DBGrids,
@@ -19,17 +19,9 @@ Uses
 {$IFDEF ADO}
   ADODB, ADOConst, ADOInt,
 {$ENDIF}
-{$IFDEF BDE}
-  BDE, DBClient, DBTables, Bdeconst,
-{$ENDIF}
 {$IFDEF IBX}
-{$IFDEF NEWDELPHI}
   IBX.IBDatabase, IBX.IBTable, IBX.IBCustomDataSet, IBX.IBSQL, IBX.IBQuery,
   IBX.IBVisualConst, IBX.IBXConst, IBX.IBUpdateSQL,
-{$ELSE}
-  IBDatabase, IBTable, IBCustomDataSet, IBSQL, IBQuery, IBUpdateSQL,
-  IBVisualConst, IBXConst,
-{$ENDIF}
   uIBUpdateSQLW,
 {$ENDIF}
 {$IFDEF ZEOS}
@@ -58,12 +50,6 @@ type
   TReportQuery=TADOQuery;
   TDBLogOn=TADOConnection;
   TCommandQuery=TADOCommand;
-{$ENDIF}
-{$IFDEF BDE}
-  TDCLDialogQuery=TQuery;
-  TReportQuery=TQuery;
-  TDBLogOn=TDatabase;
-  TUpdateObj=TUpdateSQL;
 {$ENDIF}
 {$IFDEF IBX}
   TDCLDialogQuery=TIBQuery;
@@ -101,7 +87,6 @@ type
   TEventsArray=array of String;
   TDialogSpeedButton=TSpeedButton;
   TFormPanelButton=TSpeedButton;
-
 
 implementation
 

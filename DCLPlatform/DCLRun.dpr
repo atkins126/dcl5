@@ -25,13 +25,13 @@ uses
   ThemedDBGrid in 'ThemedDBGrid.pas',
   {$ENDIF}
   {$ENDIF}
-  {$IFNDEF NEWDELPHI}
-  DBCtrls in 'units\DBCtrls.pas',
-  DBGrids in 'units\DBGrids.pas',
-  {$ELSE}
-  Vcl.DBCtrls in 'unitsXE\Vcl.DBCtrls.pas',
-  Vcl.DBGrids in 'unitsXE\Vcl.DBGrids.pas',
   {$ENDIF}
+  {$IFDEF FPC}
+  DBCtrls,
+  DBGrids,
+  {$ELSE}
+  Vcl.DBCtrls in 'units\Vcl.DBCtrls.pas',
+  Vcl.DBGrids in 'units\Vcl.DBGrids.pas',
   {$ENDIF}
   fMainForm in 'fMainForm.pas' {MainForm},
   uUDL in 'uUDL.pas',
@@ -57,12 +57,11 @@ uses
   uLZW in 'uLZW.pas',
   FileBuffer in 'FileBuffer.pas',
   uDCLQuery in 'uDCLQuery.pas',
+  {$IFNDEF FPC}
   {$IFDEF USEDELPHIThemes}
-  {$IFDEF NEWDELPHI}
   Vcl.Themes,
   Vcl.Styles,
-  {$ENDIF}
-  {$ENDIF}
+  {$ENDIF}{$ENDIF}
   uLogging in 'uLogging.pas';
 
 {$R DCLRun.res}
@@ -72,15 +71,15 @@ var
 
 begin
   {$IFDEF FPC}
-  RequireDerivedFormResource := True;
+  RequireDerivedFormResource:=True;
   {$ENDIF}
   Application.Initialize;
-  {$IFDEF NEWDELPHI}
-  Application.MainFormOnTaskbar := True;
-  {$IFDEF USEDELPHIThemes}
+  {$IFDEF MSWINDOWS}
+  Application.MainFormOnTaskbar:=True;
+  {$ENDIF}
+  {$IFNDEF FPC}{$IFDEF USEDELPHIThemes}
   TStyleManager.TrySetStyle('Smokey Quartz Kamri');
-  {$ENDIF}
-  {$ENDIF}
+  {$ENDIF}{$ENDIF}
   Application.CreateForm(TMainForm, MainForm);
   Application.Run;
 end.

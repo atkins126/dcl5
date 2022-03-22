@@ -4,23 +4,22 @@ unit uDCLData;
 interface
 
 uses
+  StdCtrls, ComCtrls, Controls, Graphics, ExtCtrls, DB, Buttons, Classes,
 {$IFDEF FPC}
   EditBtn,
 {$ENDIF}
-  StdCtrls, ComCtrls, Controls, Graphics, ExtCtrls, DB, Buttons, Classes,
-{$IFDEF NEWDELPHI}
-  DBCtrls,
+{$IFnDEF FPC}
+  Vcl.DBCtrls,
 {$ELSE}
   DBCtrls,
 {$ENDIF}
   uDCLConst, uDCLTypes;
 
-
 type
   {$IFNDEF FPC}
   DateTimePicker=TDateTimePicker;
   TNavButtons=TNavButton;
-  TNavButtonsSet={$IFDEF NONEOLDCOMPONENTS}TNavButtonSet; {$ELSE}TButtonSet; {$ENDIF}
+  TNavButtonsSet=TNavButtonSet;
   {$ENDIF}
   {$IFDEF FPC}
   DateTimePicker={$IFDEF ZVComponents}TZVDateTimePicker; {$ELSE}TDateEdit; {$ENDIF}
@@ -190,7 +189,8 @@ end;
 
 TContextList=record
   ContextList: TComboBox;
-  SQL, Table, Field, KeyField, DataField, ListField: String;
+  SQL, Table, Field, KeyField, DataField, ListField, Variable: String;
+  NoData: Boolean;
 end;
 
 TDropBox=record
@@ -213,7 +213,8 @@ TFontStyleRec=Record
 End;
 
 TReturnFormValue=Record
-  Key, Val, ModifyField, DataField, EditName:String;
+  Key, Val, KeyModifyField, ValueModifyField,
+    KeyEditName, ValueEditName, KeyVar, ValueVar:String;
   Choosen:Boolean;
 end;
 
@@ -225,9 +226,10 @@ End;
 
 TReturnValueParams=class
 public
-  KeyField, DataField, EditName, ModifyField:String;
-
-  constructor Create(aKeyField, aDataField, aEditName, aModifyField:String);
+  KeyField, ValueField, KeyEditName, ValueEditName, KeyModifyField, ValueModifyField,
+    KeyVar, ValueVar:String;
+  constructor Create(aKeyField, aValueField, aKeyEditName, aValueEditName, aKeyModifyField, aValueModifyField,
+    aKeyVar, aValueVar:String);
 end;
 
 TStrArray=Array of String;
@@ -337,8 +339,6 @@ procedure ResetChooseValue(var Val:TReturnFormValue);
 Begin
   Val.Val:='';
   Val.Key:='';
-  Val.ModifyField:='';
-  Val.EditName:='';
   Val.Choosen:=False;
 End;
 
@@ -359,12 +359,17 @@ End;
 
 { TReturnValueParams }
 
-constructor TReturnValueParams.Create(aKeyField, aDataField, aEditName, aModifyField: String);
+constructor TReturnValueParams.Create(aKeyField, aValueField, aKeyEditName, aValueEditName, aKeyModifyField, aValueModifyField,
+    aKeyVar, aValueVar: String);
 begin
   KeyField:=aKeyField;
-  DataField:=aDataField;
-  EditName:=aEditName;
-  ModifyField:=aModifyField;
+  ValueField:=aValueField;
+  KeyEditName:=aKeyEditName;
+  ValueEditName:=aValueEditName;
+  KeyModifyField:=aKeyModifyField;
+  ValueModifyField:=aValueModifyField;
+  KeyVar:=aKeyVar;
+  ValueVar:=aValueVar;
 end;
 
 Initialization

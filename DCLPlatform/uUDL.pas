@@ -22,7 +22,7 @@ Uses
 {$ENDIF}
   Messages, Variants, Classes, Graphics, Controls, Forms, ExtCtrls, ToolWin,
   Grids, DB, StdCtrls, ComCtrls, Dialogs, Buttons, ExtDlgs, Menus,
-{$IFDEF NEWDELPHI}
+{$IFnDEF FPC}
   Vcl.DBCtrls, Vcl.DBGrids,
 {$ELSE}
   DBCtrls, DBGrids,
@@ -34,23 +34,15 @@ Uses
 {$IFDEF ADO}
   ActiveX, ADODB, ADOConst, ADOInt,
 {$ENDIF}
-{$IFDEF BDE}
-  BDE, DBClient, DBTables, Bdeconst,
-{$ENDIF}
 {$IFDEF IBX}
-{$IFDEF NEWDELPHI}
   IBX.IBDatabase, IBX.IBTable, IBX.IBCustomDataSet, IBX.IBHeader, IBX.IBSQL, IBX.IBQuery,
   IBX.IBVisualConst, IBX.IBXConst,
-{$ELSE}
-  IBDatabase, IBTable, IBCustomDataSet, IBHeader, IBSQL, IBQuery,
-  IBVisualConst, IBXConst,
-{$ENDIF}
 {$ENDIF}
 {$IFDEF ZEOS}
   ZDbcIntfs, // ZConnection, ZDataset, ZSqlUpdate,
 {$ENDIF}
 {$IFDEF SQLdbFamily}
-  sqldb,
+  SQLDB, SQLDBLib,
 {$ENDIF}
 {$IFDEF FPC}
   FileUtil, LazUTF8, LConvEncoding, {$IFDEF ZVComponents}ZVDateTimePicker, {$ENDIF}
@@ -88,6 +80,9 @@ Type
   TDCLLogOn=class(TObject)
   private
     FDBLogOn: TDBLogOn;
+{$IFDEF FPC}
+    FSQLDBLibraryLoader: TSQLDBLibraryLoader;
+{$ENDIF}
 {$IFDEF TRANSACTIONDB}
     IBTransaction: TTransaction;
 {$ENDIF}
@@ -1015,6 +1010,11 @@ Type
 {$ENDIF}
   procedure EndDCL;
 
+{$IFNDEF FPC}
+{$R units\dbgrids.res}
+{$R units\dbctrls.res}
+{$ENDIF}
+
 var
   DCLMainLogOn: TDCLLogOn;
   Logger: TLogging;
@@ -1849,12 +1849,13 @@ var
   VarNum: Integer;
 begin
   Result:=False;
-  For VarNum:=0 to Length(FVariables)-1 do
-    If UpperCase(Trim(VariableName))=UpperCase(FVariables[VarNum].Name) Then
-    begin
-      Result:=True;
-      break;
-    end;
+  if VariableName<>'' then
+    For VarNum:=0 to Length(FVariables)-1 do
+      If UpperCase(Trim(VariableName))=UpperCase(FVariables[VarNum].Name) Then
+      begin
+        Result:=True;
+        break;
+      end;
 end;
 
 function TVariables.GetVariableByName(Const VariableName: String): String;
@@ -1871,19 +1872,22 @@ procedure TVariables.NewVariable(Const VariableName: String; Value: String='');
 var
   RetVarNum: Integer;
 begin
-  RetVarNum:=VariableNumByName(VariableName);
-  If RetVarNum= - 1 Then
+  if VariableName<>'' then
   begin
-    RetVarNum:=FindEmptyVariableSlot;
-    If RetVarNum<> - 1 Then
+    RetVarNum:=VariableNumByName(VariableName);
+    If RetVarNum= - 1 Then
     begin
-      FVariables[RetVarNum].Name:=Trim(VariableName);
+      RetVarNum:=FindEmptyVariableSlot;
+      If RetVarNum<> - 1 Then
+      begin
+        FVariables[RetVarNum].Name:=Trim(VariableName);
+        FVariables[RetVarNum].Value:=Value;
+      end;
+    end
+    Else
+    begin
       FVariables[RetVarNum].Value:=Value;
     end;
-  end
-  Else
-  begin
-    FVariables[RetVarNum].Value:=Value;
   end;
 end;
 
@@ -2529,8 +2533,8 @@ begin
   HashPassChk:=TCheckbox.Create(ChangePassForm);
   HashPassChk.Parent:=ChangePassForm;
   HashPassChk.Caption:=GetDCLMessageString(msHashPassword);
-  {HashPassChk.Hint:=SourceToInterface(GetDCLMessageString(msToHashing)+' '+
-      GetDCLMessageString(msPassword));}
+  {HashPassChk.Hint:=GetDCLMessageString(msToHashing)+' '+
+      GetDCLMessageString(msPassword);}
   HashPassChk.Top:=(BeginStepTop+EditTopStep*3)-FilterLabelTop;
   HashPassChk.Left:=BeginStepLeft;
   HashPassChk.Width:=200;
@@ -2901,7 +2905,7 @@ begin
       If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini') Then
       begin
         FileParams:=TStringList.Create;
-        FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+        FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
         appName:='BaseUID:'+InternalAppName+FDCLLogOn.GetBaseUID+'/';
         DialogsParams:=CopyStrings(appName+'['+DialogName+']', appName+'[END '+DialogName+']', FileParams);
         LoadFormPosUni(DialogsParams);
@@ -3067,7 +3071,7 @@ begin
   If DialogName<>'' Then
     If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini') Then
     begin
-      FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+      FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
       appName:='BaseUID:'+InternalAppName+FDCLLogOn.GetBaseUID+'/';
       For i:=1 to FileParams.Count do
       begin
@@ -3096,7 +3100,7 @@ begin
       FileParams.Delete(p1);
   end;
   FileParams.AddStrings(DialogsParams);
-  FileParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+  FileParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
 end;
 
 procedure TDCLForm.SaveFormPosBase;
@@ -3197,7 +3201,7 @@ begin
     If DialogName<>'' Then
       If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini') Then
       begin
-        FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini');
+        FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
         For i:=1 to FileParams.Count do
         begin
           If PosEx('['+DialogName+']', FileParams[i-1])=1 Then
@@ -3221,7 +3225,7 @@ begin
         FileParams.Delete(p1);
     end;
     FileParams.AddStrings(DialogsParams);
-    FileParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini');
+    FileParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
   end;
   FreeAndNil(DialogsParams);
 end;
@@ -3259,7 +3263,7 @@ begin
   If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini') Then
   begin
     MenuList:=TStringList.Create;
-    MenuList.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini');
+    MenuList.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'BookMark.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
     DialogsParams:=CopyStrings('['+DialogName+']', '[END '+DialogName+']', MenuList);
     CreateBookMarkMenuUni(DialogsParams);
     MenuList.Free;
@@ -4880,10 +4884,10 @@ begin
       If Not FForm.Showing Then
         If ModalOpen Then
         Begin
-          {LoadFormPos;
+          LoadFormPos;
           LoadBookmarkMenu;
           SettingsLoaded:=True;
-          FForm.ShowModal;}
+          FForm.ShowModal;
         End
         Else
         begin
@@ -4968,7 +4972,7 @@ begin
     If DialogName<>'' Then
       If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini') Then
       begin
-        FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+        FileParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
         For i:=1 to FileParams.Count do
         begin
           If PosEx('['+DialogName+']', FileParams[i-1])=1 Then
@@ -4991,7 +4995,7 @@ begin
     For i:=p1 to p2-p1 do
       FileParams.Delete(p1);
   end;
-  FileParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+  FileParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
 end;
 
 procedure TDCLForm.DeleteStatus(StatusNum: Integer);
@@ -5276,7 +5280,6 @@ end;
 procedure TDCLForm.GetChooseValue;
 var
   CurrentGrid: TDCLGrid;
-  KeyField: String;
 begin
   ResetChooseValue(FRetunValue);
   CurrentGrid:=Tables[ - 1];
@@ -5286,24 +5289,27 @@ begin
     If Assigned(FReturnValueParams) Then
     begin
       FRetunValue.Choosen:=True;
-      KeyField:=CurrentGrid.Query.KeyField;
-      FRetunValue.ModifyField:=FReturnValueParams.ModifyField;
-      FRetunValue.EditName:=FReturnValueParams.EditName;
+      FRetunValue.KeyModifyField:=FReturnValueParams.KeyModifyField;
+      FRetunValue.ValueModifyField:=FReturnValueParams.ValueModifyField;
 
-      If FReturnValueParams.KeyField<>'' Then
-        FRetunValue.Key:=CurrentGrid.Query.FieldByName(FReturnValueParams.KeyField).AsString
-      Else If KeyField<>'' Then
-        FRetunValue.Val:=CurrentGrid.Query.FieldByName(KeyField).AsString;
+      FRetunValue.KeyEditName:=FReturnValueParams.KeyEditName;
+      FRetunValue.ValueEditName:=FReturnValueParams.ValueEditName;
 
-      If FReturnValueParams.DataField<>'' Then
-        FRetunValue.Val:=CurrentGrid.Query.FieldByName(FReturnValueParams.DataField).AsString;
+      FRetunValue.KeyVar:=FReturnValueParams.KeyVar;
+      FRetunValue.ValueVar:=FReturnValueParams.ValueVar;
+
+      If (FReturnValueParams.KeyField<>'') and CurrentGrid.Query.Active and FieldExists(FReturnValueParams.KeyField, CurrentGrid.Query) Then
+        FRetunValue.Key:=CurrentGrid.Query.FieldByName(FReturnValueParams.KeyField).AsString;
+
+      If (FReturnValueParams.ValueField<>'') and CurrentGrid.Query.Active and FieldExists(FReturnValueParams.ValueField, CurrentGrid.Query) Then
+        FRetunValue.Val:=CurrentGrid.Query.FieldByName(FReturnValueParams.ValueField).AsString;
     end;
   end;
 end;
 
 procedure TDCLForm.Choose;
 begin
-  FForm.ShowModal;
+  ChooseAndClose(FReturningMode);
 end;
 
 function TDCLForm.ChooseAndClose(Action: TChooseMode): TReturnFormValue;
@@ -5313,6 +5319,7 @@ begin
   SetLength(FDCLLogOn.ReturnFormsValues, FFormNum+1);
   FDCLLogOn.ReturnFormsValues[FFormNum]:=FRetunValue;
   Result:=FRetunValue;
+
   Case Action of
   chmChooseAndClose:begin
     NotDestroyedDCLForm:=False;
@@ -5322,6 +5329,7 @@ begin
     NotDestroyedDCLForm:=False;
   end;
   End;
+  CloseDialog;
 end;
 
 procedure TDCLForm.ToolButtonClick(Sender: TObject);
@@ -6649,7 +6657,9 @@ begin
               TmpStr:=LowerCase(FindParam('OfficeType=', ScrStr));
               OfficeReport:=TDCLOfficeReport.Create(FDCLLogOn,
                 FDCLForm.Tables[FDCLForm.CurrentTableIndex]);
-              Case GetPossibleOffice(dtSheet, ConvertOfficeType(TmpStr)) of
+              OfficeReport.OfficeTemplateFormat:=GetPossibleOffice(dtSheet, ConvertOfficeType(TmpStr));
+
+              Case OfficeReport.OfficeTemplateFormat of
               odtOO:
               OfficeReport.ReportOpenOfficeCalc(ScrStr, Enything, EnythingElse);
               odtMSO:
@@ -6693,7 +6703,9 @@ begin
               TmpStr:=LowerCase(FindParam('OfficeType=', ScrStr));
               OfficeReport:=TDCLOfficeReport.Create(FDCLLogOn,
                 FDCLForm.Tables[FDCLForm.CurrentTableIndex]);
-              Case GetPossibleOffice(dtSheet, ConvertOfficeType(TmpStr)) of
+              OfficeReport.OfficeTemplateFormat:=GetPossibleOffice(dtText, ConvertOfficeType(TmpStr));
+
+              Case OfficeReport.OfficeTemplateFormat of
               odtOO:
               OfficeReport.ReportOpenOfficeWriter(ScrStr, Enything, EnythingElse);
               odtMSO:
@@ -7258,8 +7270,9 @@ begin
               v1:=StrToIntEx(FindParam('ChooseMode=', ScrStr));
               ChooseMode:=TChooseMode(v1);
               ReturnValueParams:=TReturnValueParams.Create(FindParam('KeyField=', ScrStr),
-                FindParam('DataField=', ScrStr), FindParam('EditName=', ScrStr),
-                FindParam('ModifyField=', ScrStr));
+                FindParam('ValueField=', ScrStr), FindParam('KeyEditName=', ScrStr), FindParam('ValueEditName=', ScrStr),
+                FindParam('KeyModifyField=', ScrStr), FindParam('ValueModifyField=', ScrStr),
+                FindParam('KeyVariable=', ScrStr), FindParam('ValueVariable=', ScrStr));
             end;
 
             If FindParam('Child=', ScrStr)='1' Then
@@ -7285,47 +7298,93 @@ begin
               Else
                 FDCLForm:=FDCLLogOn.CreateForm(TmpStr, nil, FDCLForm, nil, nil, ModalOpen, ChooseMode,
                   ReturnValueParams);
-            End;
 
-            If Assigned(FDCLForm) Then
-              If FDCLForm.ReturnFormValue.Choosen Then
-              begin
-                RetVal:=FDCLForm.ReturnFormValue;
-                tmpDCLForm:=FDCLForm.GetParentForm;
-                If ChooseMode=chmChooseAndClose Then
-                  FDCLForm.CloseAction:=fcaClose;
-                FDCLForm:=tmpDCLForm;
-
-                If FieldExists(RetVal.ModifyField, FDCLForm.CurrentQuery) Then
+                If Assigned(FDCLForm) Then
                 begin
-                  If Not (FDCLForm.CurrentQuery.State in dsEditModes) Then
-                    FDCLForm.CurrentQuery.Edit;
-                  FDCLForm.CurrentQuery.FieldByName(RetVal.ModifyField).AsString:=RetVal.Key;
-                  If RetVal.DataField<>'' Then
-                    FDCLForm.CurrentQuery.FieldByName(RetVal.DataField).AsString:=RetVal.Val
-                end;
+                  If FDCLForm.ReturnFormValue.Choosen Then
+                  begin
+                    RetVal:=FDCLForm.ReturnFormValue;
+                    FDCLForm:=FDCLForm.FCallerForm;
 
-                If RetVal.EditName<>'' Then
-                  If Assigned(FDCLForm.Tables[FDCLForm.CurrentGridIndex]) Then
-                    If Length(FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits)>0 Then
+                    If FieldExists(RetVal.KeyModifyField, FDCLForm.CurrentQuery) Then
                     begin
-                      v1:=Length(FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits);
-                      For v2:=1 to v1 do
+                      If FDCLForm.CurrentQuery.Active and Not (FDCLForm.CurrentQuery.State in dsEditModes) Then
                       begin
-                        If CompareString(RetVal.EditName, FDCLForm.Tables[FDCLForm.CurrentGridIndex]
-                            .Edits[v2-1].Edit.Name) Then
-                        begin
-                          FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits[v2-1].Edit.Text:=
-                            RetVal.Val;
-
-                          break;
-                        end;
+                        if Not (FDCLForm.CurrentQuery.State in dsEditModes) then
+                          FDCLForm.CurrentQuery.Edit;
+                        FDCLForm.CurrentQuery.FieldByName(RetVal.KeyModifyField).AsString:=RetVal.Key;
                       end;
                     end;
-              end;
 
-            If Assigned(ReturnValueParams) Then
-              FreeAndNil(ReturnValueParams);
+                    If FieldExists(RetVal.ValueModifyField, FDCLForm.CurrentQuery) Then
+                    begin
+                      If FDCLForm.CurrentQuery.Active Then
+                      begin
+                        if Not (FDCLForm.CurrentQuery.State in dsEditModes) then
+                          FDCLForm.CurrentQuery.Edit;
+                        FDCLForm.CurrentQuery.FieldByName(RetVal.ValueModifyField).AsString:=RetVal.Val;
+                      end;
+                    end;
+
+                    If RetVal.KeyEditName<>'' Then
+                    begin
+                      If Assigned(FDCLForm.Tables[FDCLForm.CurrentGridIndex]) Then
+                        If Length(FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits)>0 Then
+                        begin
+                          v1:=Length(FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits);
+                          For v2:=1 to v1 do
+                          begin
+                            If CompareString(RetVal.KeyEditName, FDCLForm.Tables[FDCLForm.CurrentGridIndex]
+                                .Edits[v2-1].Edit.Name) Then
+                            begin
+                              FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits[v2-1].Edit.Text:=
+                                RetVal.Key;
+
+                              break;
+                            end;
+                          end;
+                        end;
+                    end;
+
+                    If RetVal.ValueEditName<>'' Then
+                    begin
+                      If Assigned(FDCLForm.Tables[FDCLForm.CurrentGridIndex]) Then
+                        If Length(FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits)>0 Then
+                        begin
+                          v1:=Length(FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits);
+                          For v2:=1 to v1 do
+                          begin
+                            If CompareString(RetVal.ValueEditName, FDCLForm.Tables[FDCLForm.CurrentGridIndex]
+                                .Edits[v2-1].Edit.Name) Then
+                            begin
+                              FDCLForm.Tables[FDCLForm.CurrentGridIndex].Edits[v2-1].Edit.Text:=
+                                RetVal.Val;
+
+                              break;
+                            end;
+                          end;
+                        end;
+                    end;
+
+                    if RetVal.KeyVar<>'' then
+                    begin
+                      if not FDCLLogOn.Variables.Exists(RetVal.KeyVar) then
+                        FDCLLogOn.Variables.NewVariable(RetVal.KeyVar);
+                      FDCLLogOn.Variables.SetVariableByName(RetVal.KeyVar, RetVal.Key);
+                    end;
+
+                    if RetVal.ValueVar<>'' then
+                    begin
+                      if not FDCLLogOn.Variables.Exists(RetVal.ValueVar) then
+                        FDCLLogOn.Variables.NewVariable(RetVal.ValueVar);
+                      FDCLLogOn.Variables.SetVariableByName(RetVal.ValueVar, RetVal.Val);
+                    end;
+
+                    If Assigned(ReturnValueParams) Then
+                      FreeAndNil(ReturnValueParams);
+                  end;
+                end;
+            End;
           end;
 
           If PosEx('CloseDialog;', ScrStr)=1 Then
@@ -7801,7 +7860,7 @@ begin
     {$IFDEF TRANSACTIONDB}
     tmp_Transaction:=FDCLLogOn.NewTransaction(trtWrite);
     ADOCommand.Transaction:=tmp_Transaction;
-    ADOCommand.Transaction.StartTransaction;
+    tmp_Transaction.StartTransaction;
     {$ENDIF}
 
     try
@@ -8147,8 +8206,8 @@ end;
 
 procedure TDCLLogOn.About(Sender: TObject);
 Const
-  FormWidth=520;
-  FormHeight=430;
+  FormWidth=435;
+  FormHeight=315;
   PanelLeft=8;
 var
   AboutForm: TForm;
@@ -8158,15 +8217,6 @@ var
   OkButton: TButton;
   DBStringMemo: TMemo;
   DBString: String;
-{$IFDEF BDE}
-function GetBDEVersion:String;
-var
-  ThisVersion: SYSVersion;
-begin
-  DbiGetSysVersion(ThisVersion);
-  Result:=IntToStr(ThisVersion.iVersion);
-end;
-{$ENDIF}
 begin
   AboutForm:=TForm.Create(nil);
   With AboutForm do
@@ -8230,8 +8280,8 @@ begin
   AboutLabel.Parent:=AboutPanel;
   With AboutLabel do
   begin
-    Left:=80;
-    Top:=60;
+    Left:=80+90;
+    Top:=45;
     Width:=135;
     Height:=15;
     Caption:='Unreal Software (C) 2002-'+IntToStr(YearOf(Now));
@@ -8254,7 +8304,6 @@ begin
 {$IFDEF IBX}+' IBX v.'{$IFNDEF FPC}+FloatToStr(IBX_Version){$ENDIF}{$ENDIF}
 {$IFDEF ZEOS}+' ZEOS v.'+FDBLogOn.Version{$ENDIF}
 {$IFDEF ADO}+' ADO.db v.'+FDBLogOn.Version{$ENDIF}
-{$IFDEF BDE}+' BDE v.'+GetBDEVersion{$ENDIF}
 {$IFDEF SQLdbFamily}+' SQLdb v.'+AboutForm.LCLVersion{$ENDIF};
   end;
 
@@ -8263,7 +8312,7 @@ begin
   With AboutLabel do
   begin
     Left:=80;
-    Top:=80;
+    Top:=65;
     Width:=62;
     Height:=13;
     Caption:=GetDCLMessageString(msUser)+'/ '+GetDCLMessageString(msRole)+' : '+
@@ -8273,9 +8322,6 @@ begin
 
 {$IFDEF SERVERDB}
   DBString:=GPT.ServerName+':'+GPT.DBPath;
-{$ENDIF}
-{$IFDEF BDE}
-  DBString:=GPT.Driver_Name+' '+GPT.Alias+' '+DBString;
 {$ENDIF}
 {$IFDEF ADO}
   DBString:=GPT.ConnectionString;
@@ -8289,15 +8335,15 @@ begin
   begin
     ReadOnly:=True;
     Color:=AboutPanel.Color;
-    BorderStyle:=bsNone;
+    //BorderStyle:=bsNone;
     Left:=8;
-    Top:=105;
-    Width:=FormWidth-30;
-    Height:=95;
+    Top:=95;
+    Width:=FormWidth-PanelLeft*4;
+    Height:=55;
     Text:=GetDCLMessageString(msDataBase)+' : '+DBString;
     Font.Color:=clWindowText;
     Font.Height:= - 12;
-    // Font.Style:=[fsBold, fsItalic];
+    //Font.Style:=[fsBold, fsItalic];
     ParentFont:=False;
   end;
 
@@ -8307,16 +8353,16 @@ begin
   begin
     ReadOnly:=True;
     Color:=AboutPanel.Color;
-    BorderStyle:=bsNone;
+    //BorderStyle:=bsNone;
     Left:=8;
-    Top:=105+105;
-    Width:=FormWidth-30;
-    Height:=105;
+    Top:=95+55+8;
+    Width:=FormWidth-PanelLeft*4;
+    Height:=70;
     Text:=GetDCLMessageString(msConfiguration)+' : '+GetConfigInfo+
       ' /'+GetDCLMessageString(msVersion)+' : '+GetConfigVersion;
     Font.Color:=clWindowText;
     Font.Height:= - 12;
-    // Font.Style:=[fsBold, fsItalic];
+    //Font.Style:=[fsBold, fsItalic];
     ParentFont:=False;
   end;
 
@@ -8325,12 +8371,12 @@ begin
   With AboutLabel do
   begin
     Left:=8;
-    Top:=320;
+    Top:=235;
     Width:=62;
     Caption:=GetDCLMessageString(msInformationAbout)+' '+
         GetDCLMessageString(msBuildOf)+': '+GetDCLMessageString(msOS)+': '+TargetOS+'. CPU: '+
       TargetCPU+'.'{$IFDEF FPC}+' fpc: '+fpcVersion+'. LCL version: '+AboutForm.LCLVersion+'.'
-{$IFDEF UNIX}+' '+SourceToInterface(GetDCLMessageString(msLang))+': '+SysUtils.GetEnvironmentVariable
+{$IFDEF UNIX}+' '+GetDCLMessageString(msLang)+': '+SysUtils.GetEnvironmentVariable
       ('LANG')+'.'{$ENDIF}
 {$ENDIF};
   end;
@@ -8475,8 +8521,8 @@ begin
       begin
         DebugProc('  ... Fail');
         ConnectErrorCode:=255;
-        ShowErrorMessage(0, SourceToInterface(GetDCLMessageString(msConnectDBError)+' 0000 / '+
-              E.Message));
+        ShowErrorMessage(0, GetDCLMessageString(msConnectDBError)+' 0000 / '+
+              E.Message);
         Result:=255;
       end;
     end;
@@ -8485,93 +8531,8 @@ begin
   begin
     ConnectErrorCode:=255;
     Result:=255;
-    ShowErrorMessage(0, SourceToInterface(GetDCLMessageString(msConnectionStringIncorrect)+
-          ' 0100'));
-  end;
-{$ENDIF}
-{$IFDEF BDE}
-  If Not IsFullPAth(GPT.DBPath) Then
-    GPT.DBPath:=ExtractFilePath(Application.ExeName)+GPT.DBPath;
-
-  If CompareString(GPT.DBType, DBTypeFirebird) then
-    GPT.IBAll:=True;
-
-  If IsUNCPath(GPT.DBPath) Then
-  begin
-    DebugProc('  DBPath: '+GPT.DBPath);
-    DebugProc('UNC paths not supported.');
-    ShowErrorMessage(0, SourceToInterface('UNC '+GetDCLMessageString(msPathsNotSupported)+'.'));
-    Result:=255;
-    Exit;
-  end;
-
-  If GPT.Driver_Name='' Then
-    FDBLogOn.DriverName:='STANDARD';
-
-  FDBLogOn.DatabaseName:='DCL_LogOn_$_Main';
-  If GPT.Alias<>'' Then
-    FDBLogOn.AliasName:=GPT.Alias;
-  DebugProc('  Connection Alias: '+GPT.Alias);
-  GPT.NewDBUserName:='';
-
-  If GPT.DBPath<>'' Then
-  begin
-    DebugProc('  DBPath: '+GPT.DBPath);
-    FDBLogOn.Params.Append('PATH='+GPT.DBPath);
-    If GPT.DEFAULT_DRIVER<>'' Then
-    begin
-      FDBLogOn.Params.Append('DEFAULT DRIVER='+GPT.DEFAULT_DRIVER);
-      DebugProc('  DEFAULT DRIVER='+GPT.DEFAULT_DRIVER);
-    end;
-    Session.AddPassword(GPT.DBPassword);
-    DebugProc('  Session.AddPassword(*********)');
-    FDBLogOn.LoginPrompt:=False;
-  end
-  Else
-  begin
-    If GPT.DBUserName<>'' Then
-    begin
-      FDBLogOn.Params.Append('USER NAME='+GPT.DBUserName);
-      DebugProc('  USER NAME='+GPT.DBUserName);
-    end;
-    If GPT.DBPassword<>'' Then
-      FDBLogOn.Params.Append('PASSWORD='+GPT.DBPassword);
-
-    If GPT.ServerName<>'' Then
-    begin
-      FDBLogOn.Params.Append('SERVER NAME='+GPT.ServerName);
-      DebugProc('  SERVER NAME='+GPT.ServerName);
-      FDBLogOn.LoginPrompt:=True;
-    end
-    Else
-      FDBLogOn.LoginPrompt:=False;
-
-    If GPT.DBPassword<>'' Then
-      FDBLogOn.LoginPrompt:=False
-    Else If GPT.Alias<>'' Then
-      FDBLogOn.LoginPrompt:=True;
-  end;
-  If GPT.Driver_Name<>'' Then
-  begin
-    FDBLogOn.DriverName:=GPT.Driver_Name;
-    DebugProc('  Connection.DriverName='+GPT.Driver_Name);
-  end;
-  FDBLogOn.KeepConnection:=True;
-  try
-    DebugProc('Connected...');
-    FDBLogOn.Open;
-    DebugProc('  ... OK');
-    Result:=0;
-    ConnectErrorCode:=0;
-  Except
-    On E: Exception do
-    begin
-      DebugProc('  ... Fail');
-      ConnectErrorCode:=255;
-      ShowErrorMessage(0, SourceToInterface(GetDCLMessageString(msConnectDBError)+' 0000 / '+
-            E.Message));
-      Result:=255;
-    end;
+    ShowErrorMessage(0, GetDCLMessageString(msConnectionStringIncorrect)+
+          ' 0100');
   end;
 {$ENDIF}
 {$IFDEF IBX}
@@ -8698,7 +8659,7 @@ begin
     begin
       DebugProc('  DBPath: '+GPT.DBPath);
       DebugProc('UNC paths not supported.');
-      ShowErrorMessage(0, SourceToInterface('UNC '+GetDCLMessageString(msmsPathsNotSupportedPaths)+'.'));
+      ShowErrorMessage(0, 'UNC '+GetDCLMessageString(msmsPathsNotSupportedPaths)+'.');
       Result:=255;
       Exit;
     end;
@@ -8771,8 +8732,8 @@ begin
       begin
         DebugProc('  ... Fail');
         ConnectErrorCode:=255;
-        ShowErrorMessage(0, SourceToInterface(GetDCLMessageString(msConnectDBError)+' 0000 / '+
-              E.Message));
+        ShowErrorMessage(0, GetDCLMessageString(msConnectDBError)+' 0000 / '+
+              E.Message);
         Result:=255;
       end;
     end;
@@ -8800,6 +8761,14 @@ begin
   End
   Else
     IBTransaction:=FDBLogOn.Transaction;
+
+  If GPT.LibPath<>'' Then
+  begin
+    FSQLDBLibraryLoader:=TSQLDBLibraryLoader.Create(Application);
+    FSQLDBLibraryLoader.ConnectionType:='Firebird';
+    FSQLDBLibraryLoader.LibraryName:=GPT.LibPath;
+    FSQLDBLibraryLoader.Enabled:=True;
+  end;
 
   If Not FDBLogOn.Connected Then
   begin
@@ -8934,8 +8903,8 @@ begin
         begin
           DebugProc('  ... Fail');
           ConnectErrorCode:=255;
-          ShowErrorMessage(0, SourceToInterface(GetDCLMessageString(msConnectDBError)+' 0000 / '+
-                E.Message));
+          ShowErrorMessage(0, GetDCLMessageString(msConnectDBError)+' 0000 / '+
+                E.Message);
           Result:=255;
         end;
       end;
@@ -8971,11 +8940,7 @@ begin
   GPT.DCLUserPass:='';
   GPT.EnterPass:='';
   GPT.LongRoleName:='';
-{$IFDEF BDE}
-  GPT.StringTypeChar:='"';
-{$ELSE}
   GPT.StringTypeChar:='''';
-{$ENDIF}
   GPT.SQLDialect:=3;
   GPT.DisableLogOnWithoutUser:=False;
 
@@ -9050,9 +9015,9 @@ begin
     ReturnValueMode, ReturnValueParams));
   i:=FForms.Count-1;
   CurrentForm:=i;
-  If Assigned(ReturnValueParams) then
+  {If Assigned(ReturnValueParams) then
     If ReturnValueMode<>chmNone then
-      Forms[i].Choose;
+      Forms[i].Choose;}
 
   If Assigned(Forms[i]) then
   If Forms[i].ExitCode=0 Then
@@ -9377,7 +9342,7 @@ begin
   If FileExists(FileName) Then
   begin
     Scr:=TStringList.Create;
-    Scr.LoadFromFile(FileName);
+    Scr.LoadFromFile(FileName{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
     tmpMem:=TMemoryStream.Create;
     Scr.SaveToStream(tmpMem);
     tmpMem.Position:=0;
@@ -9541,9 +9506,6 @@ end;
 procedure TDCLLogOn.GetTableNames(var List: TStrings);
 begin
 {$IFDEF ADO}
-  FDBLogOn.GetTableNames(List);
-{$ENDIF}
-{$IFDEF BDE}
   FDBLogOn.GetTableNames(List);
 {$ENDIF}
 {$IFDEF ZEOS}
@@ -10160,12 +10122,6 @@ begin
 {$IFDEF ADO}
   Query.Connection:=FDBLogOn;
 {$ENDIF}
-{$IFDEF BDE}
-  If GPT.Alias<>'' Then
-    Query.DatabaseName:=GPT.Alias
-  Else
-    Query.DatabaseName:=FDBLogOn.DatabaseName; // 'DCL_LogOn_$_Main';
-{$ENDIF}
 {$IFDEF IBX}
   Query.Database:=FDBLogOn;
 {$ENDIF}
@@ -10498,10 +10454,7 @@ end;
 procedure CreateAboutItem(var MainMenu: TMainMenu; Form: TForm);
 var
   ItemMenu: TMenuItem;
-  Bmp1:TPicture;
 begin
-  Bmp1:=TPicture.Create;
-  Bmp1.Assign(DrawBMPButton('logo'));
   If Not Assigned(MainMenu) Then
     MainMenu:=TMainMenu.Create(Form);
 
@@ -10509,14 +10462,6 @@ begin
   ItemMenu.Name:='ItemMeu_About';
   ItemMenu.Caption:='О...';
   ItemMenu.OnClick:=DCLMainLogOn.About;
-
-  {$IFDEF MSWINDOWS}
-  SetMenuItemBitmaps(ItemMenu.Handle,
-    0,
-    MF_BYPOSITION,
-    Bmp1.Bitmap.Handle,
-    Bmp1.Bitmap.Handle);
-  {$ENDIF}
 
   MainMenu.Items.Add(ItemMenu);
 end;
@@ -11320,6 +11265,8 @@ begin
     ContextLists[l].ListField:=ContextLists[l].Field;
 
   ContextLists[l].DataField:=Field.FieldName;
+  ContextLists[l].Variable:=FindParam('VariableName=', Field.OPL);
+  ContextLists[l].NoData:=FindParam('NoDataField=', Field.OPL)='1';
 
   ShadowQuery:=TDCLDialogQuery.Create(nil);
   ShadowQuery.Name:='ContextList_'+IntToStr(UpTime);
@@ -11340,12 +11287,17 @@ begin
   ShadowQuery.Open;
   ShadowQuery.First;
 
+  lSQL:=ContextLists[l].Field;
+  if ContextLists[l].Field='' then
+  begin
+    lSQL:=ShadowQuery.Fields[0].FieldName;
+  end;
   ContextLists[l].ContextList.Items.Clear;
   While Not ShadowQuery.Eof do
   begin
-    If Trim(ShadowQuery.FieldByName(ContextLists[l].Field).AsString)<>'' Then
+    If Trim(ShadowQuery.FieldByName(lSQL).AsString)<>'' Then
       ContextLists[l].ContextList.Items.Append
-        (Trim(ShadowQuery.FieldByName(ContextLists[l].Field).AsString));
+        (Trim(ShadowQuery.FieldByName(lSQL).AsString));
     ShadowQuery.Next;
   end;
   ShadowQuery.Close;
@@ -11666,8 +11618,10 @@ var
   TmpStr, tmpStr1, tmpSQL1: String;
   DropList: TComboBox;
   v1, v2: Integer;
+  //NoDataField: Boolean;
 begin
-  If FDisplayMode in TDataGrid Then
+  //NoDataField:=FindParam('NoDataField=', Field.OPL)='1';
+  If FQuery.Active and (FDisplayMode in TDataGrid) Then
   begin
     TmpStr:=FindParam('List=', Field.OPL);
     TranslateVal(TmpStr);
@@ -12718,6 +12672,11 @@ begin
       FQuery.Post;
     FLocalBookmark:=FQuery.GetBookmark;
     FQuery.Close;
+    {$IFnDEF FPC}
+    {$IFDEF TRANSACTIONDB}
+    FQuery.Transaction.Commit;
+    {$ENDIF}
+    {$ENDIF}
   end;
 end;
 
@@ -12776,10 +12735,17 @@ begin
 
     If Not tmpQuery.IsEmpty Then
     begin
-      If (FQuery.State=dsBrowse) Then
-        FQuery.Edit;
-      FQuery.FieldByName(ContextLists[ComboNum].DataField).AsInteger:=
-        tmpQuery.FieldByName(ContextLists[ComboNum].KeyField).AsInteger;
+      if not ContextLists[ComboNum].NoData then
+      begin
+        If (FQuery.State=dsBrowse) Then
+          FQuery.Edit;
+        FQuery.FieldByName(ContextLists[ComboNum].DataField).AsInteger:=
+          tmpQuery.FieldByName(ContextLists[ComboNum].KeyField).AsInteger;
+      end;
+      if FDCLLogOn.Variables.Exists(ContextLists[ComboNum].Variable) then
+      begin
+        FDCLLogOn.Variables.Variables[ContextLists[ComboNum].Variable]:=tmpQuery.FieldByName(ContextLists[ComboNum].KeyField).AsString;
+      end;
     end;
     tmpQuery.Close;
     FreeAndNil(tmpQuery);
@@ -12790,6 +12756,7 @@ procedure TDCLGrid.ContextListKeyDown(Sender: TObject; var Key: Word; Shift: TSh
 var
   ComboNum: Integer;
   tmpQuery: TDCLDialogQuery;
+  tmpStr: String;
   Combo: TComboBox;
 begin
   ComboNum:=(Sender as TComponent).Tag;
@@ -12810,22 +12777,32 @@ begin
 
       Combo.Items.Clear;
 
+      tmpStr:=ContextLists[ComboNum].DataField;
+      if ContextLists[ComboNum].DataField<>'' then
+      begin
+        if not FieldExists(ContextLists[ComboNum].DataField, tmpQuery) then
+        begin
+          tmpStr:=tmpQuery.Fields[0].FieldName;
+        end;
+      end;
       If tmpQuery.RecordCount=1 Then
       begin
-        Combo.Text:=Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString);
-        If (FQuery.State=dsBrowse) Then
-          FQuery.Edit;
-        FQuery.FieldByName(ContextLists[ComboNum].DataField).AsInteger:=
-          tmpQuery.FieldByName(ContextLists[ComboNum].KeyField).AsInteger;
-      end
-      Else
-      begin
-        While Not tmpQuery.Eof do
+        if FieldExists(ContextLists[ComboNum].DataField, FQuery) then
         begin
-          If Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString)<>'' Then
-            Combo.Items.Append(Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString));
-          tmpQuery.Next;
+          Combo.Text:=Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString);
+          If (FQuery.Active and (FQuery.State=dsBrowse)) Then
+          begin
+            FQuery.Edit;
+            FQuery.FieldByName(ContextLists[ComboNum].DataField).AsInteger:=
+              tmpQuery.FieldByName(ContextLists[ComboNum].KeyField).AsInteger;
+          end;
         end;
+      end;
+      While Not tmpQuery.Eof do
+      begin
+        If Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString)<>'' Then
+          Combo.Items.Append(Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString));
+        tmpQuery.Next;
       end;
       tmpQuery.Close;
       FreeAndNil(tmpQuery);
@@ -13422,6 +13399,7 @@ begin
   v2:=(Sender as TCustomComboBox).ItemIndex;
   If FQuery.Active Then
   begin
+    if FieldExists(DropBoxes[v1].FieldName, FQuery) then
     If FQuery.FieldByName(DropBoxes[v1].FieldName).AsInteger<>v2 Then
     begin
       If Not (Query.State in dsEditModes) Then
@@ -15492,8 +15470,17 @@ begin
 
   LayotCount:=0;
   Layot:=TStringList.Create;
-  FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
-    FindParam('FileName=', ParamStr), Ext);
+  if FindParam('TemplateName=', ParamStr)<>'' then
+  begin
+    FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
+      FindParam('FileName=', ParamStr), Ext);
+  end
+  else
+  begin
+    FileName:=FindParam('FileName=', ParamStr);
+    if not IsFullPath(FileName) then
+      FileName:=Path+FileName;
+  end;
   If BinStor.ErrorCode=0 Then
     If FileExists(FileName) Then
     begin
@@ -15563,10 +15550,6 @@ begin
       end;
       DCLQuery.First;
 
-      BookmarksSupplier:=Document.getBookmarks;
-      If (Not BookmarkFromLayot)and(LayotCount=0) Then
-        LayotCount:=BookmarksSupplier.Count;
-
       DocNum:=1;
       While Not DCLQuery.Eof do
       begin
@@ -15582,6 +15565,10 @@ begin
           Exit;
         End;
         CursorPointer:=TextPointer.CreateTextCursor;
+
+        BookmarksSupplier:=Document.getBookmarks;
+        If (Not BookmarkFromLayot)and(LayotCount=0) Then
+          LayotCount:=BookmarksSupplier.Count;
 
         For BookmarckNum:=0 to LayotCount-1 do
         begin
@@ -15731,8 +15718,17 @@ begin
   Ext:='ods';
   end;
 
-  FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
-    FindParam('FileName=', ParamStr), Ext);
+  if FindParam('TemplateName=', ParamStr)<>'' then
+  begin
+    FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
+      FindParam('FileName=', ParamStr), Ext);
+  end
+  else
+  begin
+    FileName:=FindParam('FileName=', ParamStr);
+    if not IsFullPath(FileName) then
+      FileName:=Path+FileName;
+  end;
   If BinStor.ErrorCode=0 Then
     If FileExists(FileName) Then
     begin
@@ -15917,8 +15913,17 @@ begin
 {$IFDEF MSWINDOWS}
   LayotCount:=0;
   Layot:=TStringList.Create;
-  FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
-    FindParam('FileName=', ParamStr), 'doc');
+  if FindParam('TemplateName=', ParamStr)<>'' then
+  begin
+    FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
+      FindParam('FileName=', ParamStr), 'doc');
+  end
+  else
+  begin
+    FileName:=FindParam('FileName=', ParamStr);
+    if not IsFullPath(FileName) then
+      FileName:=Path+FileName;
+  end;
   If BinStor.ErrorCode=0 Then
     If FileExists(FileName) Then
     begin
@@ -16056,8 +16061,17 @@ var
   DCLQuery: TDCLDialogQuery;
 begin
 {$IFDEF MSWINDOWS}
-  FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
-    FindParam('FileName=', ParamStr), 'xls');
+  if FindParam('TemplateName=', ParamStr)<>'' then
+  begin
+    FileName:=BinStor.GetTemplateFile(FindParam('TemplateName=', ParamStr),
+      FindParam('FileName=', ParamStr), 'xlsx');
+  end
+  else
+  begin
+    FileName:=FindParam('FileName=', ParamStr);
+    if not IsFullPath(FileName) then
+      FileName:=Path+FileName;
+  end;
   If BinStor.ErrorCode=0 Then
     If FileExists(FileName) Then
     begin
@@ -17054,7 +17068,6 @@ begin
       FErrorCode:=4;
       TempFile:='';
     end;
-
   end;
   Result:=TempFile;
 end;

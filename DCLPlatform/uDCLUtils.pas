@@ -347,7 +347,7 @@ begin
     ExecInfo.lpParameters := Pointer(AParameters);
     ExecInfo.lpDirectory := Pointer(ADirectory);
     ExecInfo.nShow := AShowCmd;
-    ExecInfo.fMask := {$IFDEF NEWDELPHI}SEE_MASK_NOASYNC{$ELSE}SEE_MASK_FLAG_DDEWAIT{$ENDIF}
+    ExecInfo.fMask := {$IFnDEF FPC}SEE_MASK_NOASYNC{$ELSE}SEE_MASK_FLAG_DDEWAIT{$ENDIF}
                    or SEE_MASK_FLAG_NO_UI;
     {$IFDEF UNICODE}
     // Необязательно, см. http://www.transl-gunsmoker.ru/2015/01/what-does-SEEMASKUNICODE-flag-in-ShellExecuteEx-actually-do.html
@@ -593,7 +593,7 @@ Begin
     MS.Write(DCLbmp, Length(DCLbmp));
 
   If CompareString(BMPType, 'logo_small') Then
-    MS.Write(DCLbmp, Length(DCLbmp_Small));
+    MS.Write(DCLbmp_Small, Length(DCLbmp_Small));
 
   If MS.Size>0 Then
   Begin
@@ -601,7 +601,7 @@ Begin
     MS.Position:=0;
     MS.Read(Marker, 3);
 
-    If Marker=PAGSignature Then // PAG Signature
+    If Marker=PAGSignature Then  // 80, 65, 71
     Begin
       // Compressed BMP/
       BS:=TMemoryStream.Create;
@@ -617,7 +617,7 @@ Begin
     MS.Position:=BMPPos;
     Result.LoadFromStream(MS);
     Result.TransparentColor:=Result.Canvas.Pixels[0, 0];
-    Result.TransparentMode:=tmFixed; // tmAuto;
+    Result.TransparentMode:=tmFixed;
     Result.Transparent:=True;
   End
   Else
@@ -685,7 +685,7 @@ Begin
   tmpS:='';
   For iI:=L Downto 1 Do
     If Pos(St[iI], '.,')<>0 Then
-      St[iI]:={$IFDEF NEWDELPHI}FormatSettings.DecimalSeparator{$ELSE}{$IFDEF FPC}FormatSettings.{$ENDIF}DecimalSeparator{$ENDIF};
+      St[iI]:=FormatSettings.DecimalSeparator;
 
   St:=Calculate(St);
   L:=Length(St);
@@ -1476,14 +1476,6 @@ Begin
         If PosEx('ConnectionString=', Params[i])=1 Then
           GPT.ConnectionString:=Copy(Params[i], 18, Length(Params[i]));
 {$ENDIF}
-{$IFDEF BDE}
-        If PosEx('Alias=', Params[i])=1 Then
-          GPT.Alias:=FindParam('Alias=', Params[i]);
-        If PosEx('DriverName=', Params[i])=1 Then
-          GPT.Driver_Name:=FindParam('DriverName=', Params[i]);
-        If PosEx('DEFAULTDRIVER=', Params[i])=1 Then
-          GPT.DEFAULT_DRIVER:=FindParam('DEFAULTDRIVER=', Params[i]);
-{$ENDIF}
 {$IFDEF SERVERDB}
         If PosEx('UserName=', Params[i])=1 Then
           GPT.DBUserName:=FindParam('UserName=', Params[i]);
@@ -1619,15 +1611,6 @@ Begin
           End;
         End;
 
-{$IFDEF BDE}
-        If PosEx('NoParamsTable=', Params[i])=1 Then
-        Begin
-          If Trim(FindParam('NoParamsTable=', Params[i]))='1' Then
-            GPT.NoParamsTable:=True
-          Else
-            GPT.NoParamsTable:=False;
-        End;
-{$ENDIF}
         If PosEx('ShowFormPanel=', Params[i])=1 Then
         Begin
           If Trim(FindParam('ShowFormPanel=', Params[i]))='1' Then
@@ -1760,6 +1743,7 @@ Begin
         Begin
           AppConfigDir:=Trim(FindParam('UserLocalProfile=', Params[i]));
           DCLMainLogOn.TranslateVal(AppConfigDir);
+          AppConfigDir:=IncludeTrailingPathDelimiter(AppConfigDir);
         End;
       End;
     End;
@@ -1804,6 +1788,14 @@ End;
 Function IsUNCPath(Path: String): Boolean;
 Begin
   Result:=Pos('\\', Path)=1;
+End;
+
+Function ExpandShortPath(Path: String): String;
+Begin
+  if Pos('.', Path)=1 then
+  Begin
+
+  End;
 End;
 
 Procedure InitGetAppConfigDir;
@@ -1988,7 +1980,7 @@ Begin
 {$IFDEF MSWINDOWS}
   If ScriptRunCreated Then
   Begin
-    FreeAndNil(ScriptRun);
+    //FreeAndNil(ScriptRun);
     ScriptRun:=Unassigned;
     ScriptRunCreated:=False;
   End;
@@ -2137,7 +2129,7 @@ begin
     Yes:=False;
     DialogsParams:=TStringList.Create;
     If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini') Then
-      DialogsParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+      DialogsParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
     If DialogsParams.Count<>0 Then
     Begin
       For i:=1 To DialogsParams.Count Do
@@ -2153,7 +2145,7 @@ begin
     Else
       DialogsParams.Append(GetFormPosString(FForm, DialogName));
 
-    DialogsParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+    DialogsParams.SaveToFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
     FreeAndNil(DialogsParams);
   End;
 end;
@@ -2239,7 +2231,7 @@ Begin
       If FileExists(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini') Then
       Begin
         DialogsParams:=TStringList.Create;
-        DialogsParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini');
+        DialogsParams.LoadFromFile(IncludeTrailingPathDelimiter(AppConfigDir)+'Dialogs.ini'{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
         For ParamsCounter:=0 To DialogsParams.Count-1 Do
         Begin
           If PosEx(DialogName+'=', DialogsParams[ParamsCounter])=1 Then

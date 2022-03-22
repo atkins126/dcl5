@@ -5,13 +5,15 @@ interface
 
 uses
   SysUtils, Classes,
+{$IFDEF FPC}
+  LazUTF8,
+{$ENDIF}
 {$IFDEF MSWINDOWS}
   Windows, 
 {$ENDIF}
   uDCLConst;
 
 type
-  //TLangID=LongWord;
   TLangName=String;
 
   TTranscodeDataType=(tdtUTF8, tdtDOS, tdtTranslit);
@@ -820,7 +822,7 @@ begin
   If FileExists(FileName) then
   Begin
     LangResFile:=TStringList.Create;
-    LangResFile.LoadFromFile(FileName);
+    LangResFile.LoadFromFile(FileName{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
 
     For ii:=1 to LangResFile.Count do
     Begin
@@ -1034,7 +1036,7 @@ begin
   If FileExists(FileName) then
   Begin
     LangResFile:=TStringList.Create;
-    LangResFile.LoadFromFile(FileName);
+    LangResFile.LoadFromFile(FileName{$IFNDEF FPC}, TEncoding.UTF8{$ENDIF});
 
     For i:=1 to LangResFile.Count do
     Begin
@@ -1151,13 +1153,24 @@ begin
     Result:='';
 end;
 
+function GetISO639LangCode(LangCode: String): String;
+var
+  tmpLang: String;
+begin
+  tmpLang:=LowerCase(LangCode);
+  if tmpLang='ru' then Result:='RUS';
+  if tmpLang='en' then Result:='ENG';
+  if tmpLang='pl' then Result:='POL';
+  if tmpLang='be' then Result:='BEL';
+end;
+
 function GetSystemLanguage: String;
 var
 {$IFDEF MSWINDOWS}
   OutputBuffer: PChar;
 {$ENDIF}
 {$IFDEF UNIX}
-  S, Lang:string;
+  S:string;
 {$ENDIF}
 begin
 {$IFDEF MSWINDOWS}
@@ -1171,9 +1184,9 @@ begin
   end;
 {$ENDIF}
 {$IFDEF UNIX}
-  S:=SysUtils.GetEnvironmentVariable('LANG');
-  Lang:=Copy(S, 1, Pos('_', S)-1);
-  Result:=GetLangNameISO639ByShort(Lang);
+  S:='';
+  lazutf8.LazGetShortLanguageID(S);
+  Result:=GetISO639LangCode(S);
 {$ENDIF}
 end;
 

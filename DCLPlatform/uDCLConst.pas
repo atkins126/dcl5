@@ -4,24 +4,25 @@ unit uDCLConst;
 interface
 
 uses
-  uStringParams,
 {$IFDEF FPC}
   LConvEncoding,
 {$ENDIF}
-  DBCtrls;
+{$IFnDEF FPC}
+  Vcl.DBCtrls, Vcl.DBGrids,
+{$ELSE}
+  DBCtrls, DBGrids,
+{$ENDIF}
+  uStringParams;
 
 const
 {$IFDEF MSWINDOWS}
 DefaultLibraryLocation='gds32.dll';
 {$ENDIF}
 {$IFDEF UNIX}
-DefaultLibraryLocation='fbclient.so';
+DefaultLibraryLocation='libfbclient.so';
 {$ENDIF}
 {$IFDEF ADO}
   DBEngineType='ADODB (Universal)';
-{$ENDIF}
-{$IFDEF BDE}
-  DBEngineType='BDE (Universal)';
 {$ENDIF}
 {$IFDEF IBX}
   DBEngineType='IBX';
@@ -38,7 +39,7 @@ DefaultLibraryLocation='fbclient.so';
 {$IFDEF SQLdb}
   DBEngineType='SQLdb (Universal)';
 {$ENDIF}
-  Ver='10.1.50.372';
+  Ver='10.2.0.7';
   VersionS='$VersionSignature$'+Ver+'$';
 
   CompotableVersion='9.1.129.309';
@@ -46,7 +47,13 @@ DefaultLibraryLocation='fbclient.so';
   JPEGCompressionQuality=85;
 
   EditWidth=230;
+  {$IFDEF FPC}
+  CalendarWidth=95;
+  DateBoxWidth=95;
+  {$ELSE}
+  CalendarWidth=85;
   DateBoxWidth=85;
+  {$ENDIF}
   DateTimeBoxWidth=110;
   DigitEditWidth=80;
   GetValueEditWidth=181;
@@ -62,7 +69,6 @@ DefaultLibraryLocation='fbclient.so';
   GraficHeight=160;
   GroupHeight=160;
   CheckWidth=100;
-  CalendarWidth=85;
   TablePartHeight=250;
   RollHeight=33;
   NavigatorHeight=25;
@@ -76,8 +82,12 @@ DefaultLibraryLocation='fbclient.so';
   ToolLeftInterval=15;
 
 {$IFDEF FPC}
-  CalendarLeft={$IFDEF ZVComponents}25{$ELSE}35{$ENDIF};
+  CalendarLeft={$IFDEF ZVComponents}25{$ELSE}15{$ENDIF};
+  {$IFDEF LINUX}
+  AddHeight=203;
+  {$ELSE}
   AddHeight=20;
+  {$ENDIF}
   DateBoxAddWidth={$IFDEF ZVComponents}20{$ELSE}30{$ENDIF};
 {$ELSE}
   AddHeight=0;
@@ -147,7 +157,7 @@ DefaultLibraryLocation='fbclient.so';
 
   TextScriptFileExt='.dst';
   SignedScriptExt='.dcs';
-  SignMethodVer='1.3';
+  SignMethodVer='1.2';
 
   DBTypeFirebird='firebird';
   DBTypeInterbase='interbase';
@@ -251,11 +261,7 @@ DefaultLibraryLocation='fbclient.so';
   EncodingUTF8='utf8';
   UTF8BOM=#$EF#$BB#$BF;
   UTF16LEBOM=#$FF#$FE;
-  {$IFDEF NEWDELPHI}
   DefaultInterfaceEncoding='utf8';
-  {$ELSE}
-  DefaultInterfaceEncoding='win1251';
-  {$ENDIF}
 {$ENDIF}
 {$IFDEF FPC}
   DefaultInterfaceEncoding=EncodingUTF8;
