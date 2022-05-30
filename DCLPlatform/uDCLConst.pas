@@ -39,7 +39,7 @@ DefaultLibraryLocation='libfbclient.so';
 {$IFDEF SQLdb}
   DBEngineType='SQLdb (Universal)';
 {$ENDIF}
-  Ver='10.2.0.8';
+  Ver='10.2.1.0';
   VersionS='$VersionSignature$'+Ver+'$';
 
   CompotableVersion='9.1.129.309';
@@ -268,7 +268,6 @@ DefaultLibraryLocation='libfbclient.so';
 {$ENDIF}
   InternalAppName='DCLPlatform_'+InternalAppNameSuffix;
 
-
   PAGSignatureSize=3;
   PAGSignature=$474150;
   ParamPrefix=':';
@@ -308,8 +307,6 @@ DefaultLibraryLocation='libfbclient.so';
 
   NavigatorEditButtons=[nbEdit, nbDelete, nbInsert, nbPost, nbCancel];
   NavigatorNavigateButtons=[nbFirst, nbLast, nbRefresh];
-
-  EditButtonsSet=[nbFirst, nbLast, nbEdit, nbDelete, nbInsert, nbPost, nbCancel, nbRefresh];
 
   DefaultNavigButtonsSet='First,Last,Edit,Delete,Insert,Post,Cancel,Refresh';
 

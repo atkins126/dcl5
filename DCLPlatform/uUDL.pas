@@ -2663,8 +2663,6 @@ begin
   FGrids[GridIndex].TabType:=ptMainPage;
   GridPanel:=FGrids[GridIndex].FGridPanel;
 
-  // FItnQuery:=FGrids[GridIndex].Query;
-
   FGrids[GridIndex].ToolButtonsCount:=0;
   FGrids[GridIndex].ToolButtonPanel:=TToolBarPanel.Create(FGrids[GridIndex].FGridPanel);
   FGrids[GridIndex].ToolButtonPanel.Parent:=FGrids[GridIndex].FGridPanel;
@@ -2822,10 +2820,16 @@ begin
 end;
 
 procedure TDCLForm.CloseForm(Sender: TObject; var Action: TCloseAction);
+var
+  I:Integer;
 begin
+  for I:=1 to Length(EventsClose) do
+  begin
+    ExecCommand(EventsClose[I-1]);
+  end;
   FDCLLogOn.KillerDog.Enabled:=True;
   If not NoCloseable then
-    If {GetActive and} Not NotDestroyedDCLForm Then
+    If Not NotDestroyedDCLForm Then
       CloseAction:=fcaClose;
 end;
 
@@ -3863,7 +3867,8 @@ begin
               If UserLevelLocal<>ulReadOnly Then
                 NavigVisiButtonsVar[8]:=[nbPost];
             If PosEx('cancel', tmpSQL)<>0 Then
-              NavigVisiButtonsVar[9]:=[nbCancel];
+              If UserLevelLocal<>ulReadOnly Then
+                NavigVisiButtonsVar[9]:=[nbCancel];
             If PosEx('refresh', tmpSQL)<>0 Then
               NavigVisiButtonsVar[10]:=[nbRefresh];
             FGrids[GridIndex].Navig.VisibleButtons:=NavigVisiButtonsVar[1]+NavigVisiButtonsVar[2]+
@@ -7278,7 +7283,7 @@ begin
             If FindParam('Child=', ScrStr)='1' Then
             Begin
               If Assigned(FDCLForm) then
-                FDCLForm:=FDCLLogOn.CreateForm(TmpStr, FDCLForm, nil, FDCLForm.CurrentQuery, nil,
+                FDCLForm:=FDCLLogOn.CreateForm(TmpStr, FDCLForm, FDCLForm, nil, FDCLForm.GetDataSource,
                   ModalOpen, ChooseMode, ReturnValueParams);
             End
             Else
@@ -7296,7 +7301,7 @@ begin
                 End;
               end
               Else
-                FDCLForm:=FDCLLogOn.CreateForm(TmpStr, nil, FDCLForm, nil, nil, ModalOpen, ChooseMode,
+                FDCLForm:=FDCLLogOn.CreateForm(TmpStr, nil, FDCLForm, FDCLForm.CurrentQuery, nil, ModalOpen, ChooseMode,
                   ReturnValueParams);
 
                 If Assigned(FDCLForm) Then
@@ -7310,9 +7315,12 @@ begin
                     begin
                       If FDCLForm.CurrentQuery.Active and Not (FDCLForm.CurrentQuery.State in dsEditModes) Then
                       begin
-                        if Not (FDCLForm.CurrentQuery.State in dsEditModes) then
-                          FDCLForm.CurrentQuery.Edit;
-                        FDCLForm.CurrentQuery.FieldByName(RetVal.KeyModifyField).AsString:=RetVal.Key;
+                        if FDCLForm.CurrentQuery.CanModify then
+                        begin
+                          if Not (FDCLForm.CurrentQuery.State in dsEditModes) then
+                            FDCLForm.CurrentQuery.Edit;
+                          FDCLForm.CurrentQuery.FieldByName(RetVal.KeyModifyField).AsString:=RetVal.Key;
+                        end;
                       end;
                     end;
 
@@ -7320,9 +7328,12 @@ begin
                     begin
                       If FDCLForm.CurrentQuery.Active Then
                       begin
-                        if Not (FDCLForm.CurrentQuery.State in dsEditModes) then
-                          FDCLForm.CurrentQuery.Edit;
-                        FDCLForm.CurrentQuery.FieldByName(RetVal.ValueModifyField).AsString:=RetVal.Val;
+                        If FDCLForm.CurrentQuery.CanModify Then
+                        begin
+                          if Not (FDCLForm.CurrentQuery.State in dsEditModes) then
+                            FDCLForm.CurrentQuery.Edit;
+                          FDCLForm.CurrentQuery.FieldByName(RetVal.ValueModifyField).AsString:=RetVal.Val;
+                        end;
                       end;
                     end;
 
@@ -8207,7 +8218,7 @@ end;
 procedure TDCLLogOn.About(Sender: TObject);
 Const
   FormWidth=435;
-  FormHeight=315;
+  FormHeight=300;
   PanelLeft=8;
 var
   AboutForm: TForm;
@@ -8339,7 +8350,7 @@ begin
     Left:=8;
     Top:=95;
     Width:=FormWidth-PanelLeft*4;
-    Height:=55;
+    Height:=42;
     Text:=GetDCLMessageString(msDataBase)+' : '+DBString;
     Font.Color:=clWindowText;
     Font.Height:= - 12;
@@ -8355,7 +8366,7 @@ begin
     Color:=AboutPanel.Color;
     //BorderStyle:=bsNone;
     Left:=8;
-    Top:=95+55+8;
+    Top:=95+42+8;
     Width:=FormWidth-PanelLeft*4;
     Height:=70;
     Text:=GetDCLMessageString(msConfiguration)+' : '+GetConfigInfo+
@@ -8371,7 +8382,7 @@ begin
   With AboutLabel do
   begin
     Left:=8;
-    Top:=235;
+    Top:=222;
     Width:=62;
     Caption:=GetDCLMessageString(msInformationAbout)+' '+
         GetDCLMessageString(msBuildOf)+': '+GetDCLMessageString(msOS)+': '+TargetOS+'. CPU: '+
@@ -8388,7 +8399,7 @@ begin
     With AboutLabel do
     begin
       Left:=8;
-      Top:=345;
+      Top:=245;
       Width:=62;
       Caption:=GetDCLMessageString(msDebugMode)+': '+GetOnOffMode(GPT.DebugOn);
     end;
@@ -12074,7 +12085,7 @@ begin
         end;
         FreeAndNil(ShadowQuery);
       end;
-    If TempStr<>'' Then
+    If (TempStr<>'') and Query.CanModify Then
     begin
       If (Not (FQuery.State in dsEditModes))and FQuery.Active and(Not NoDataField) Then
         Query.Edit;
@@ -12735,7 +12746,7 @@ begin
 
     If Not tmpQuery.IsEmpty Then
     begin
-      if not ContextLists[ComboNum].NoData then
+      if not ContextLists[ComboNum].NoData and FQuery.CanModify then
       begin
         If (FQuery.State=dsBrowse) Then
           FQuery.Edit;
@@ -12790,7 +12801,7 @@ begin
         if FieldExists(ContextLists[ComboNum].DataField, FQuery) then
         begin
           Combo.Text:=Trim(tmpQuery.FieldByName(ContextLists[ComboNum].Field).AsString);
-          If (FQuery.Active and (FQuery.State=dsBrowse)) Then
+          If (FQuery.Active and FQuery.CanModify and (FQuery.State=dsBrowse)) Then
           begin
             FQuery.Edit;
             FQuery.FieldByName(ContextLists[ComboNum].DataField).AsInteger:=
@@ -12838,13 +12849,11 @@ begin
   RowTextColor:=clBlack;
   PreviousColumnIndex:=-1;
 
+  FData.DataSet:=Query;
   If Not Assigned(Query) Then
   begin
     SetNewQuery(Data);
-    FData.DataSet:=FQuery;
-  end
-  Else
-    FData.DataSet:=Query;
+  end;
 
   If Assigned(Data) Then
     FQuery.DataSource:=Data;
@@ -13400,7 +13409,7 @@ begin
   If FQuery.Active Then
   begin
     if FieldExists(DropBoxes[v1].FieldName, FQuery) then
-    If FQuery.FieldByName(DropBoxes[v1].FieldName).AsInteger<>v2 Then
+    If (FQuery.FieldByName(DropBoxes[v1].FieldName).AsInteger<>v2) and FQuery.CanModify Then
     begin
       If Not (Query.State in dsEditModes) Then
         FQuery.Edit;
@@ -14261,9 +14270,12 @@ begin
       begin
         If FieldExists(DateBoxes[DateBoxNamb].DateBoxToFields, Query) Then
         begin
-          Query.Edit;
-          Query.FieldByName(DateBoxes[DateBoxNamb].DateBoxToFields).AsString:=
-            DateToStr(DateBoxes[DateBoxNamb].DateBox.Date);
+          if Query.CanModify then
+          begin
+            Query.Edit;
+            Query.FieldByName(DateBoxes[DateBoxNamb].DateBoxToFields).AsString:=
+              DateToStr(DateBoxes[DateBoxNamb].DateBox.Date);
+          end;
         end;
       end;
     End;
@@ -14642,12 +14654,15 @@ begin
   v1:=(Sender as TComponent).Tag;
   If Query.Active and FieldExists(RollBars[v1].Field, Query) Then
   begin
-    If Query.FieldByName(RollBars[v1].Field).AsString<>IntToStr((Sender as TTrackBar).Position) Then
+    if Query.CanModify then
     begin
-      If Not (Query.State in dsEditModes) Then
-        Query.Edit;
+      If Query.FieldByName(RollBars[v1].Field).AsString<>IntToStr((Sender as TTrackBar).Position) Then
+      begin
+        If Not (Query.State in dsEditModes) Then
+          Query.Edit;
 
-      Query.FieldByName(RollBars[v1].Field).AsString:=IntToStr((Sender as TTrackBar).Position);
+        Query.FieldByName(RollBars[v1].Field).AsString:=IntToStr((Sender as TTrackBar).Position);
+      end;
     end;
   end;
 
@@ -14890,7 +14905,18 @@ begin
   Else
   begin
     If Assigned(Navig) Then
-      Navig.VisibleButtons:=Navig.VisibleButtons+NavigatorEditButtons;
+    begin
+      if nbInsert in Navig.VisibleButtons then
+        Navig.VisibleButtons:=Navig.VisibleButtons-[nbInsert];
+      if nbDelete in Navig.VisibleButtons then
+        Navig.VisibleButtons:=Navig.VisibleButtons-[nbDelete];
+      if nbPost in Navig.VisibleButtons then
+        Navig.VisibleButtons:=Navig.VisibleButtons-[nbPost];
+      if nbCancel in Navig.VisibleButtons then
+        Navig.VisibleButtons:=Navig.VisibleButtons-[nbCancel];
+      if nbEdit in Navig.VisibleButtons then
+        Navig.VisibleButtons:=Navig.VisibleButtons-[nbEdit];
+    end;
     If Assigned(FGrid) Then
       If not (dgEditing in FGrid.Options) then
         FGrid.Options:=FGrid.Options+[dgEditing];
@@ -15072,7 +15098,7 @@ begin
     If ToolButtonsCount=0 Then
       FreeAndNil(ToolButtonPanel);
   end;
-  SetReadOnly(FReadOnly);
+  ///SetReadOnly(FReadOnly);
 
   FShowed:=True;
 end;
@@ -15225,6 +15251,7 @@ begin
   CommandButton[FButtonsCount-1].Tag:=FButtonsCount-1;
   CommandButton[FButtonsCount-1].Caption:=ButtonParams.Caption;
   CommandButton[FButtonsCount-1].Hint:=ButtonParams.Hint;
+  CommandButton[FButtonsCount-1].ShowHint:=ButtonParams.Hint<>'';
   CommandButton[FButtonsCount-1].OnClick:=ExecCommand;
   CommandButton[FButtonsCount-1].Top:=ButtonParams.Top;
   CommandButton[FButtonsCount-1].Left:=ButtonParams.Left;
