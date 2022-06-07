@@ -553,6 +553,7 @@ Type
 
   TDCLForm=class(TComponent)
   private
+    SingleMod: Boolean;
     FName: String;
     FCloseAction: TDCLFormCloseAction;
     FParentForm, FCallerForm: TDCLForm;
@@ -693,6 +694,7 @@ Type
     property FormNum: Integer read FFormNum;
     property ReturnFormValue: TReturnFormValue read FRetunValue;
     property CloseAction: TDCLFormCloseAction read FCloseAction write FCloseAction;
+    property IsSingle: Boolean read SingleMod write SingleMod;
   end;
 
   { TDCLCommand }
@@ -3505,7 +3507,17 @@ begin
   FormWidth:=DefaultFormWidth;
   ExitNoSave:=False;
   SetLength(FGrids, 0);
-  // CachedUpdates:=False;
+
+  For v1:=1 to FDCLLogOn.FormsCount do
+  begin
+    If Assigned(FDCLLogOn.Forms[v1-1]) Then
+      If FDCLLogOn.Forms[v1-1].IsSingle and (FDCLLogOn.Forms[v1-1].DialogName=DialogName) Then
+      begin
+        Exit;
+        break;
+      end;
+  end;
+
   For v1:=1 to FDCLLogOn.FormsCount do
   begin
     If Assigned(FDCLLogOn.Forms[v1-1]) Then
@@ -3618,6 +3630,11 @@ begin
         DialogName:=tmpSQL;
         FName:=DialogName;
         FDialogName:=DialogName;
+      end;
+
+      If PosEx('Single;', ScrStr)=1 Then
+      begin
+        IsSingle:=True;
       end;
 
       If PosEx('Orientation=', ScrStr)=1 Then
@@ -3815,9 +3832,9 @@ begin
         FGrids[GridIndex].TranslateVal(TmpStr);
 
         If StrToIntEx(TmpStr)=1 Then
-          FGrids[GridIndex].ReadOnly:=True
+          FGrids[GridIndex].SetReadOnly(True)
         Else
-          FGrids[GridIndex].ReadOnly:=False;
+          FGrids[GridIndex].SetReadOnly(False);
       end;
 
       If PosEx('NoCloseable=', ScrStr)=1 Then
@@ -9012,7 +9029,19 @@ function TDCLLogOn.CreateForm(FormName: String; ParentForm, CallerForm: TDCLForm
 var
   i: Integer;
   Scr: TStringList;
+  FormPoint:Pointer;
 begin
+  For i:=1 to FForms.Count do
+  begin
+    If Assigned(Forms[i-1]) then
+    if Forms[i-1].IsSingle and (Forms[i-1].DialogName=FormName) then
+    begin
+      Forms[i-1].Form.BringToFront;
+      Result:=nil;
+      Exit;
+    end;
+  end;
+
   If not Assigned(Script) then
     Scr:=LoadScrText(FormName)
   Else
@@ -9022,13 +9051,13 @@ begin
   End;
 
   i:=FForms.Count;
-  FForms.Add(TDCLForm.Create(FormName, Self, ParentForm, CallerForm, i, Scr, Query, Data, ModalMode,
-    ReturnValueMode, ReturnValueParams));
+  FormPoint:=TDCLForm.Create(FormName, Self, ParentForm, CallerForm, i, Scr, Query, Data, ModalMode,
+    ReturnValueMode, ReturnValueParams);
+
+  if Assigned(FormPoint) then
+    FForms.Add(FormPoint);
   i:=FForms.Count-1;
   CurrentForm:=i;
-  {If Assigned(ReturnValueParams) then
-    If ReturnValueMode<>chmNone then
-      Forms[i].Choose;}
 
   If Assigned(Forms[i]) then
   If Forms[i].ExitCode=0 Then
@@ -12085,15 +12114,17 @@ begin
         end;
         FreeAndNil(ShadowQuery);
       end;
-    If (TempStr<>'') and Query.CanModify Then
+    If (TempStr<>'') Then
     begin
-      If (Not (FQuery.State in dsEditModes))and FQuery.Active and(Not NoDataField) Then
-        Query.Edit;
       If (Not FForm.Showing) and (Not NoDataField) Then
         FForm.Show;
       Lookups[l].Lookup.KeyValue:=TempStr;
-      If Not NoDataField Then
+      If (Not NoDataField) and Query.CanModify Then
+      begin
+        If (Not (FQuery.State in dsEditModes))and FQuery.Active and(Not NoDataField) Then
+          Query.Edit;
         FData.DataSet.FieldByName(Field.FieldName).AsInteger:=StrToIntEx(TempStr);
+      end;
       LookupOnClick(Lookups[l].Lookup);
     end;
   end;
@@ -12105,7 +12136,7 @@ procedure TDCLGrid.AddLookupTable(var Field: RField);
 var
   l, FFactor: Word;
   TempStr, TmpStr, FieldName: String;
-  v1, v2: Integer;
+  v1, v2, v3: Integer;
   FField: RField;
 begin
   l:=Length(LookupTables);
@@ -12147,14 +12178,23 @@ begin
     v1:=ParamsCount(TempStr);
     For v2:=1 to v1 do
     begin
+      v3:=0;
       TmpStr:=SortParams(TempStr, v2);
       FieldName:=Copy(TmpStr, 1, Pos('/', TmpStr)-1);
+      if Pos('=', FieldName)<>0 then
+      begin
+        v3:=StrToIntEx(Copy(FieldName, Pos('=', FieldName)+1, Length(FieldName)));
+        FieldName:=Copy(FieldName, 1, Pos('=', FieldName)-1);
+      end;
+
       ResetFieldParams(FField);
       If FieldExists(FieldName, LookupTables[l].DCLGrid.Query) Then
       begin
         FField.FType:=LookupTables[l].DCLGrid.Query.FieldByName(FieldName).DataType;
         FField.FieldName:=FieldName;
         FField.Caption:=Copy(TmpStr, Pos('/', TmpStr)+1, Length(TmpStr)-1);
+        if v3>10 then
+          FField.Width:=v3;
       end
       Else
       begin
@@ -12164,7 +12204,7 @@ begin
     end;
   end;
 
-  IncXYPos(EditTopStep, LookupTables[l].LookupPanel.Width, Field);
+  IncXYPos(LookupTables[l].LookupPanel.Height+EditTopStep, LookupTables[l].LookupPanel.Width, Field);
 end;
 
 procedure TDCLGrid.AddMediaFieldGroup(Parent: TWinControl; Align: TAlign; GroupType: TGroupType;
@@ -13187,6 +13227,11 @@ begin
         If PosEx('As_Graphic;', FOPL[ScrStrNum+FieldNo+FieldNo])<>0 Then
         begin
           FField.FType:=ftGraphic;
+        end;
+
+        If PosEx('As_Date;', FOPL[ScrStrNum+FieldNo+FieldNo])<>0 Then
+        begin
+          FField.FType:=ftDate;
         end;
 
         If PosEx('As_Memo;', FOPL[ScrStrNum+FieldNo+FieldNo])<>0 Then
@@ -14897,14 +14942,6 @@ begin
   If Value Then
   begin
     If Assigned(Navig) Then
-      Navig.VisibleButtons:=Navig.VisibleButtons-NavigatorEditButtons;
-    If Assigned(FGrid) Then
-      If dgEditing in FGrid.Options then
-        FGrid.Options:=FGrid.Options-[dgEditing];
-  end
-  Else
-  begin
-    If Assigned(Navig) Then
     begin
       if nbInsert in Navig.VisibleButtons then
         Navig.VisibleButtons:=Navig.VisibleButtons-[nbInsert];
@@ -14917,6 +14954,16 @@ begin
       if nbEdit in Navig.VisibleButtons then
         Navig.VisibleButtons:=Navig.VisibleButtons-[nbEdit];
     end;
+    If Assigned(FGrid) Then
+      If dgEditing in FGrid.Options then
+        FGrid.Options:=FGrid.Options-[dgEditing];
+
+    {AddNotAllowedOperation(dsoDelete);
+    AddNotAllowedOperation(dsoInsert);
+    AddNotAllowedOperation(dsoEdit);}
+  end
+  Else
+  begin
     If Assigned(FGrid) Then
       If not (dgEditing in FGrid.Options) then
         FGrid.Options:=FGrid.Options+[dgEditing];
@@ -15009,9 +15056,17 @@ begin
     If FindNotAllowedOperation(dsoDelete) Then
       Navig.VisibleButtons:=Navig.VisibleButtons-[nbDelete];
     If FindNotAllowedOperation(dsoInsert) Then
+    begin
       Navig.VisibleButtons:=Navig.VisibleButtons-[nbInsert];
+      Navig.VisibleButtons:=Navig.VisibleButtons-[nbPost];
+      Navig.VisibleButtons:=Navig.VisibleButtons-[nbCancel];
+    end;
     If FindNotAllowedOperation(dsoEdit) Then
+    begin
       Navig.VisibleButtons:=Navig.VisibleButtons-[nbEdit];
+      Navig.VisibleButtons:=Navig.VisibleButtons-[nbPost];
+      Navig.VisibleButtons:=Navig.VisibleButtons-[nbCancel];
+    end;
   end;
 
   If Not FShowed Then
@@ -15043,6 +15098,15 @@ begin
       SetPopupMenuItems(True);
 
       FGrid.PopupMenu:=PopupGridMenu;
+
+      if FDisplayMode=dctLookupGrid then
+      begin
+        If Assigned(Navig) Then
+        begin
+          Navig.VisibleButtons:=Navig.VisibleButtons-[nbPrior];
+          Navig.VisibleButtons:=Navig.VisibleButtons-[nbNext];
+        end;
+      end;
     end;
 
     If FDisplayMode in TDataFields Then
@@ -15098,7 +15162,7 @@ begin
     If ToolButtonsCount=0 Then
       FreeAndNil(ToolButtonPanel);
   end;
-  ///SetReadOnly(FReadOnly);
+  SetReadOnly(FReadOnly);
 
   FShowed:=True;
 end;
