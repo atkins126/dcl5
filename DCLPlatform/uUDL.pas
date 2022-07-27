@@ -214,7 +214,8 @@ Type
     constructor Create(var DCLLogOn: TDCLLogOn; DCLForm: TDCLForm);
     destructor Destroy; override;
 
-    procedure NewVariable(Const VariableName: String; Value: String='');
+    procedure NewVariable(Const VariableName: String; Value: String);
+    procedure NewVariableWithTest(Const VariableName: String);
     procedure FreeVariable(Const VariableName: String);
     function Exists(Const VariableName: String): Boolean;
     procedure RePlaseVariables(var VariablesSet: String; Query: TDCLDialogQuery);
@@ -396,6 +397,7 @@ Type
     procedure ExecFilter(Sender: TObject);
     procedure OnContextFilter(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure CalendarOnChange(Sender: TObject);
+    procedure OnNotCheckClick(Sender: TObject);
 
     function GetTablePart(Index: Integer): TDCLGrid;
     procedure SetTablePart(Index: Integer; Value: TDCLGrid);
@@ -412,7 +414,8 @@ Type
 
     property FQuery: TDCLQuery read GetQuery write SetQuery;
   public
-    QueryName, DependField, MasterDataField: String;
+    QueryName, DependField, MasterDataField, MasterValueVariableName: String;
+    NoDataField: Boolean;
     TabType: TPageType;
     CurrentTabIndex, Tag: Integer;
     DataFields: Array of TDCLDataFields;
@@ -554,14 +557,15 @@ Type
   TDCLForm=class(TComponent)
   private
     SingleMod: Boolean;
-    FName: String;
+    FName, CloseQueryText: String;
     FCloseAction: TDCLFormCloseAction;
     FParentForm, FCallerForm: TDCLForm;
     UserLevelLocal: TUserLevelsType;
     FOPL: TStringList;
     FFormNum, FormHeight, FormWidth: Integer;
     TB: TFormPanelButton;
-    FNewPage, NoVisual, NoStdKeys, FieldsSettingsReseted, SettingsLoaded, NoCloseable: Boolean;
+    FNewPage, NoVisual, NoStdKeys, FieldsSettingsReseted, SettingsLoaded,
+    NoCloseable, CloseQuery, FormCanClose: Boolean;
     FForm: TDBForm;
     FDCLLogOn: TDCLLogOn;
     FGrids: Array of TDCLGrid;
@@ -1870,7 +1874,7 @@ begin
     Result:=FVariables[vv1].Value;
 end;
 
-procedure TVariables.NewVariable(Const VariableName: String; Value: String='');
+procedure TVariables.NewVariable(Const VariableName: String; Value: String);
 var
   RetVarNum: Integer;
 begin
@@ -1889,6 +1893,25 @@ begin
     Else
     begin
       FVariables[RetVarNum].Value:=Value;
+    end;
+  end;
+end;
+
+procedure TVariables.NewVariableWithTest(Const VariableName: String);
+var
+  RetVarNum: Integer;
+begin
+  if VariableName<>'' then
+  begin
+    RetVarNum:=VariableNumByName(VariableName);
+    If RetVarNum= - 1 Then
+    begin
+      RetVarNum:=FindEmptyVariableSlot;
+      If RetVarNum<> - 1 Then
+      begin
+        FVariables[RetVarNum].Name:=Trim(VariableName);
+        FVariables[RetVarNum].Value:='';
+      end;
     end;
   end;
 end;
@@ -2830,7 +2853,7 @@ begin
     ExecCommand(EventsClose[I-1]);
   end;
   FDCLLogOn.KillerDog.Enabled:=True;
-  If not NoCloseable then
+  If FormCanClose then
     If Not NotDestroyedDCLForm Then
       CloseAction:=fcaClose;
 end;
@@ -3038,14 +3061,31 @@ begin
 end;
 
 procedure TDCLForm.OnCloseQuery(Sender: TObject; var CanClose: Boolean);
+var
+  S:String;
+  DlgRes:Integer;
 begin
-  CanClose:=not NoCloseable;
   If NoCloseable then
-  {$IFDEF MSWINDOWS}
-    Beep(500, 500);
-  {$ELSE}
-    Beep;
-  {$ENDIF}
+  Begin
+    CanClose:=not NoCloseable;
+    FormCanClose:=CanClose;
+    {$IFDEF MSWINDOWS}
+      Beep(500, 500);
+    {$ELSE}
+      Beep;
+    {$ENDIF}
+    Exit;
+  End;
+
+  If CloseQuery then
+  Begin
+    S:=CloseQueryText;
+    if S='' then
+      S:=GetDCLMessageString(msClose);
+    DlgRes:=ShowErrorMessage(10, S);
+    CanClose:=DlgRes=1;
+    FormCanClose:=CanClose;
+  End;
 end;
 
 procedure TDCLForm.SaveFormPos;
@@ -3477,6 +3517,7 @@ var
 
 begin
   NoCloseable:=False;
+  FormCanClose:=True;
   FCloseAction:=fcaNone;
   FieldsOPL:=nil;
   ExitCode:=0;
@@ -3843,6 +3884,12 @@ begin
         NoCloseable:=Trim(TmpStr)='1';
       end;
 
+      If PosEx('CloseQuery=', ScrStr)=1 Then
+      begin
+        CloseQueryText:=FindParam('CloseQuery=', ScrStr);
+        CloseQuery:=True;
+      end;
+
       If PosEx('Navigator=', ScrStr)=1 Then
       begin
         TranslateVal(ScrStr, True);
@@ -4037,7 +4084,7 @@ begin
           If FindParam('VariableName=', ScrStr)<>'' Then
           begin
             FFilter.VarName:=FindParam('VariableName=', ScrStr);
-            FDCLLogOn.Variables.NewVariable(FFilter.VarName);
+            FDCLLogOn.Variables.NewVariableWithTest(FFilter.VarName);
           end;
 
           tmpSQL:=FindParam('KeyValue=', ScrStr);
@@ -4083,7 +4130,7 @@ begin
         If FindParam('VariableName=', ScrStr)<>'' Then
         begin
           FFilter.VarName:=FindParam('VariableName=', ScrStr);
-          FDCLLogOn.Variables.NewVariable(FFilter.VarName);
+          FDCLLogOn.Variables.NewVariableWithTest(FFilter.VarName);
         end;
 
         If FindParam('MaxLength=', ScrStr)<>'' Then
@@ -4496,6 +4543,13 @@ begin
             begin
               FGrids[GridIndex].TableParts[TabIndex].MasterDataField:=
                 FindParam('MasterDataField=', ScrStr);
+            end;
+
+            FGrids[GridIndex].TableParts[TabIndex].NoDataField:=FindParam('NoDataField=', ScrStr)='1';
+            If FindParam('VariableName=', ScrStr)<>'' Then
+            begin
+              FGrids[GridIndex].TableParts[TabIndex].MasterValueVariableName:=
+                FindParam('VariableName=', ScrStr);
             end;
 
             If FindParam('Navigator=', ScrStr)='0' Then
@@ -5181,7 +5235,8 @@ procedure TDCLForm.CloseDialog;
 begin
   If Assigned(FForm) then
     FForm.Close;
-  CloseAction:=fcaClose;
+  if FormCanClose then
+    CloseAction:=fcaClose;
 end;
 
 procedure TDCLForm.ResumeDatasets;
@@ -5440,6 +5495,9 @@ var
   tmp1, tmp2, VarName, ReturnField, SQLText, KeyField: String;
   i, sv_v2, v2, v0: Integer;
   DCLQuery: TDCLDialogQuery;
+  {$IFDEF TRANSACTIONDB}
+  tmp_Transaction:TTransaction;
+  {$ENDIF}
 begin
   ReturnField:='';
   tmp2:=FindParam('SetValue=', S);
@@ -5504,6 +5562,13 @@ begin
       DCLQuery:=TDCLDialogQuery.Create(nil);
       DCLQuery.Name:='SetVal_Ret'+IntToStr(UpTime);
       FDCLLogOn.SetDBName(DCLQuery);
+
+      {$IFDEF TRANSACTIONDB}
+      tmp_Transaction:=FDCLLogOn.NewTransaction(trtWrite);
+      DCLQuery.Transaction:=tmp_Transaction;
+      tmp_Transaction.StartTransaction;
+      {$ENDIF}
+
       DCLQuery.SQL.Text:=SQLText;
       Screen.Cursor:=crSQLWait;
       try
@@ -5527,13 +5592,17 @@ begin
       If sv_v2<=0 Then
         sv_v2:=Length(tmp2);
       tmp1:=Copy(LowerCase(tmp2), 1, sv_v2);
-      FDCLLogOn.Variables.NewVariable(tmp1);
 
       tmp2:=TrimRight(DCLQuery.FieldByName(ReturnField).AsString);
       TranslateValContext(tmp2);
-
-      FDCLLogOn.Variables.Variables[tmp1]:=tmp2;
       DCLQuery.Close;
+
+      FDCLLogOn.Variables.NewVariable(tmp1, tmp2);
+
+      {$IFDEF TRANSACTIONDB}
+      tmp_Transaction.Commit;
+      FreeAndNil(tmp_Transaction);
+      {$ENDIF}
       FreeAndNil(DCLQuery);
     end;
   end;
@@ -5709,7 +5778,6 @@ begin
     begin
       FDCLForm.NotDestroyedDCLForm:=False;
       FDCLForm.CloseDialog;
-      FDCLForm.CloseAction:=fcaClose;
     end;
     Executed:=True;
   end;
@@ -6930,7 +6998,7 @@ begin
             If tmpStr3<>'' Then
             begin
               tmpStr2:=FindParam('VariableName=', ScrStr);
-              FDCLLogOn.Variables.NewVariable(tmpStr2);
+              FDCLLogOn.Variables.NewVariableWithTest(tmpStr2);
 
               If LowerCase(tmpStr3)='yesno' Then
               begin
@@ -7396,15 +7464,13 @@ begin
 
                     if RetVal.KeyVar<>'' then
                     begin
-                      if not FDCLLogOn.Variables.Exists(RetVal.KeyVar) then
-                        FDCLLogOn.Variables.NewVariable(RetVal.KeyVar);
+                      FDCLLogOn.Variables.NewVariableWithTest(RetVal.KeyVar);
                       FDCLLogOn.Variables.SetVariableByName(RetVal.KeyVar, RetVal.Key);
                     end;
 
                     if RetVal.ValueVar<>'' then
                     begin
-                      if not FDCLLogOn.Variables.Exists(RetVal.ValueVar) then
-                        FDCLLogOn.Variables.NewVariable(RetVal.ValueVar);
+                      FDCLLogOn.Variables.NewVariableWithTest(RetVal.ValueVar);
                       FDCLLogOn.Variables.SetVariableByName(RetVal.ValueVar, RetVal.Val);
                     end;
 
@@ -7705,9 +7771,7 @@ begin
             If Not Assigned(BinStore) Then
               BinStore:=TBinStore.Create(FDCLLogOn, ftSQL, '', '', '',
                 FindParam('DataField=', ScrStr));
-            If Not FDCLLogOn.Variables.Exists(tmpStr1) Then
-              FDCLLogOn.Variables.NewVariable(tmpStr1);
-            FDCLLogOn.Variables.Variables[tmpStr1]:=BinStore.MD5(FindParam('SQL=', ScrStr));
+            FDCLLogOn.Variables.NewVariable(tmpStr1, BinStore.MD5(FindParam('SQL=', ScrStr)));
           end;
 
           If PosEx('SQLmon_Clear;', ScrStr)=1 Then
@@ -10042,12 +10106,13 @@ begin
   Result.Params.Clear;
   Case RW of
   trtWrite:Begin
-    Result.Params.Append('nowait');
+    Result.Params.Append('write');
   End;
   trtRead:Begin
     Result.Params.Append('read');
   End;
   End;
+  Result.Params.Append('nowait');
   Result.Params.Append('read_committed');
   If GPT.IBAll then
     Result.Params.Append('rec_version');
@@ -11162,6 +11227,8 @@ end;
 procedure TDCLGrid.AddSimplyCheckBox(var Field: RField);
 var
   l: Integer;
+  value1:String;
+  state:Boolean;
 begin
   Field.CurrentEdit:=True;
   l:=Length(CheckBoxes);
@@ -11181,16 +11248,28 @@ begin
     CheckBoxes[l].CheckBox.Hint:=Field.Hint;
   end;
 
+  state:=False;
   If Field.Variable<>'' Then
-    FDCLLogOn.Variables.NewVariable(Field.Variable)
+  begin
+    FDCLLogOn.Variables.NewVariableWithTest(Field.Variable);
+  end
   Else
   begin
-    FDCLLogOn.Variables.NewVariable('CheckBox_'+Field.FieldName);
+    FDCLLogOn.Variables.NewVariableWithTest('CheckBox_'+Field.FieldName);
     Field.Variable:='CheckBox_'+Field.FieldName;
   end;
 
+  value1:=FindParam('_Value=', Field.OPL);
+  if value1<>'' then
+  begin
+    TranslateVal(value1);
+    state:=value1='1';
+  end;
+
+  CheckBoxes[l].NoDataField:=Field.NoDataField;
   CheckBoxes[l].CheckBoxToVars:=Field.Variable;
-  CheckBoxes[l].CheckBox.Checked:=False;
+  CheckBoxes[l].CheckBox.Checked:=state;
+
   If PosEx('_OnCheck;', Field.OPL)<>0 Then
     CheckBoxes[l].CheckBox.Checked:=True;
   If PosEx('_OffCheck;', Field.OPL)<>0 Then
@@ -11214,7 +11293,7 @@ end;
 
 procedure TDCLGrid.AddCheckBox(var Field: RField);
 begin
-  If FQuery.Active and FieldExists(Field.FieldName, Query) Then
+  If (not Field.NoDataField) and FQuery.Active and FieldExists(Field.FieldName, Query) Then
     AddDBCheckBox(Field)
   Else
     AddSimplyCheckBox(Field);
@@ -11259,13 +11338,15 @@ begin
   ContextFieldButtons[l].Button.ShowHint:=True;
   ContextFieldButtons[l].Button.OnClick:=ContextFieldButtonsClick;
 
-  Field.StepLeft:=GetValueButtonGeom;
+  Field.StepLeft:=Field.Left+Field.Width+5+GetValueButtonGeom;
 
   TempStr:=FindParam('CommandName=', Field.OPL);
   If TempStr<>'' Then
   begin
     ContextFieldButtons[l].Command:=TempStr;
   end;
+
+  IncXYPos(0, Field.Width+5+GetValueButtonGeom, Field);
 end;
 
 procedure TDCLGrid.AddContextList(var Field: RField);
@@ -11306,7 +11387,7 @@ begin
 
   ContextLists[l].DataField:=Field.FieldName;
   ContextLists[l].Variable:=FindParam('VariableName=', Field.OPL);
-  ContextLists[l].NoData:=FindParam('NoDataField=', Field.OPL)='1';
+  ContextLists[l].NoData:=Field.NoDataField;
 
   ShadowQuery:=TDCLDialogQuery.Create(nil);
   ShadowQuery.Name:='ContextList_'+IntToStr(UpTime);
@@ -11365,6 +11446,8 @@ begin
   Else
     DateBoxes[DateBoxCount].DateBox.Name:=FindParam('ComponentName=', Field.OPL);
 
+  DateBoxes[DateBoxCount].NoDataField:=Field.NoDataField;
+
   If Field.Hint<>'' Then
   begin
     DateBoxes[DateBoxCount].DateBox.ShowHint:=True;
@@ -11396,6 +11479,19 @@ begin
     NeedValue:=1;
   If FindParam('SQL=', Field.OPL)<>'' Then
     NeedValue:=2;
+
+  if not Field.NoDataField then
+  begin
+    If FQuery.Active Then
+    Begin
+      If FindParam('_ValueIfNull=', Field.OPL)<>'' Then
+      Begin
+        If FieldExists(Field.FieldName, FQuery) Then
+          if FQuery.FieldByName(Field.FieldName).IsNull then
+            NeedValue:=4;
+      End;
+    End;
+  end;
 
   TempStr:='';
   Case NeedValue of
@@ -11434,20 +11530,9 @@ begin
       TempStr:=DateToStr(Date);
     ShadowQuery.Close;
     FreeAndNil(ShadowQuery);
-
-    If FindParam('IfNull=', Field.OPL)='1' Then
-    Begin
-      If Query.Active Then
-      begin
-        If FieldExists(Field.FieldName, Query) Then
-        Begin
-          if not Query.FieldByName(Field.FieldName).IsNull then
-          Begin
-            TempStr:=TrimRight(Query.FieldByName(Field.FieldName).AsString);
-          End;
-        End;
-      end;
-    End;
+  end;
+  4:begin
+    TempStr:=FindParam('_ValueIfNull', Field.OPL);
   end;
   end;
 
@@ -11578,6 +11663,16 @@ begin
     DBFilters[l].Lookup.Width:=Filter.Width;
     DBFilters[l].Lookup.ListField:=Filter.ListField+';'+Filter.KeyField;
 
+    DBFilters[l].NotCheck:=TCheckBox.Create(ToolPanel);
+    DBFilters[l].NotCheck.Parent:=ToolPanel;
+    DBFilters[l].NotCheck.Tag:=l;
+    DBFilters[l].NotCheck.Top:=FilterTop+EditHeight+LabelTopInterval;
+    DBFilters[l].NotCheck.Left:=BeginStepLeft+ToolPanelElementLeft;
+    DBFilters[l].NotCheck.Name:='NotCheck_'+IntToStr(l);
+    DBFilters[l].NotCheck.Width:=Filter.Width;
+    DBFilters[l].NotCheck.Caption:=GetDCLMessageString(msNotFilter);
+    DBFilters[l].NotCheck.OnClick:=OnNotCheckClick;
+
 {$IFDEF FPC}
     DBFilters[l].Lookup.OnSelect:=ExecFilter;
 {$ELSE}
@@ -11608,6 +11703,17 @@ begin
     DBFilters[l].Edit.OnKeyUp:=OnContextFilter;
 
     DBFilters[l].Field:=Filter.Field;
+
+    DBFilters[l].NotCheck:=TCheckBox.Create(ToolPanel);
+    DBFilters[l].NotCheck.Parent:=ToolPanel;
+    DBFilters[l].NotCheck.Tag:=l;
+    DBFilters[l].NotCheck.Top:=FilterTop+EditHeight+LabelTopInterval;
+    DBFilters[l].NotCheck.Left:=BeginStepLeft+ToolPanelElementLeft;
+    DBFilters[l].NotCheck.Name:='NotCheck_'+IntToStr(l);
+    DBFilters[l].NotCheck.Width:=Filter.Width;
+    DBFilters[l].NotCheck.Caption:=GetDCLMessageString(msNotFilter);
+
+    DBFilters[l].NotCheck.OnClick:=OnNotCheckClick;
   end;
 
   Case Filter.FilterType of
@@ -11658,9 +11764,7 @@ var
   TmpStr, tmpStr1, tmpSQL1: String;
   DropList: TComboBox;
   v1, v2: Integer;
-  //NoDataField: Boolean;
 begin
-  //NoDataField:=FindParam('NoDataField=', Field.OPL)='1';
   If FQuery.Active and (FDisplayMode in TDataGrid) Then
   begin
     TmpStr:=FindParam('List=', Field.OPL);
@@ -11732,7 +11836,7 @@ begin
     begin
       tmpStr1:=FindParam('VariableName=', Field.OPL);
       DropBoxes[l].Variable:=tmpStr1;
-      FDCLLogOn.Variables.NewVariable(tmpStr1);
+      FDCLLogOn.Variables.NewVariableWithTest(tmpStr1);
     end;
 
     tmpSQL1:=FindParam('SQL=', Field.OPL);
@@ -11863,6 +11967,7 @@ begin
   Edits[EditsCount].Edit.CharCase:=Field.CharCase;
 
   Edits[EditsCount].Edit.Tag:=EditsCount;
+  Edits[EditsCount].Edit.ReadOnly:=Field.ReadOnly;
   Edits[EditsCount].EditsToFields:=Field.FieldName;
   Edits[EditsCount].Edit.Parent:=FieldPanel;
   Edits[EditsCount].Edit.OnClick:=EditClick;
@@ -11874,12 +11979,24 @@ begin
 
   If FieldBoxType<>fbtOutBox Then
   begin
-    Edits[EditsCount].EditsToFloat:=False;
+    RePlaseParams(TempStr);
+    FDCLForm.RePlaseVariables(TempStr);
     TempStr:=FindParam('Format=', Field.OPL);
-    If LowerCase(TempStr)='float' Then
+    if TempStr<>'' then
     begin
-      Edits[EditsCount].EditsToFloat:=True;
       Edits[EditsCount].Edit.OnKeyPress:=EditOnFloatData;
+      If LowerCase(TempStr)='float' Then
+      begin
+        Field.FieldTypeFormat:=fftFloat;
+      end;
+      if LowerCase(TempStr)='digit' then
+      begin
+        Field.FieldTypeFormat:=fftDigit;
+      end;
+      if LowerCase(TempStr)='trim' then
+      begin
+        Field.FieldTypeFormat:=fftTrim;
+      end;
     end;
   end
   Else
@@ -11904,37 +12021,61 @@ begin
     If FindParam('_Value=', Field.OPL)<>'' Then
       NeedValue:=1
     Else
-      NeedValue:=3;
-  End
-  Else
-  Begin
-    If FindParam('_ValueIfNull=', Field.OPL)<>'' Then
     Begin
-      If FQuery.Active Then
+      NeedValue:=3;
+    End;
+  End;
+
+  If FindParam('_ValueIfEmpty=', Field.OPL)<>'' Then
+  Begin
+    TempStr:=FindParam('_Value=', Field.OPL);
+    RePlaseParams(TempStr);
+    FDCLForm.RePlaseVariables(TempStr);
+
+    if TempStr<>'' then
+    begin
+      NeedValue:=6;
+    end;
+  End;
+
+  if not Field.NoDataField then
+  begin
+    If FQuery.Active Then
+    Begin
+      If FindParam('_ValueIfNull=', Field.OPL)<>'' Then
+      Begin
         If FieldExists(Field.FieldName, FQuery) Then
           if FQuery.FieldByName(Field.FieldName).IsNull then
             NeedValue:=4;
-    End;
-    If FindParam('_ValueIfNotNull=', Field.OPL)<>'' Then
-    Begin
-      If FQuery.Active Then
+      End;
+      If FindParam('_ValueIfNotNull=', Field.OPL)<>'' Then
+      Begin
         If FieldExists(Field.FieldName, FQuery) Then
           if not FQuery.FieldByName(Field.FieldName).IsNull then
             NeedValue:=5;
+      End;
     End;
-  End;
+  end;
+
   If FindParam('SQL=', Field.OPL)<>'' Then
     NeedValue:=2;
 
   TempStr:='';
   Case NeedValue of
   0:
+  if not Field.NoDataField then
   If FQuery.Active Then
     If FieldExists(Field.FieldName, FQuery) Then
       TempStr:=TrimRight(FQuery.FieldByName(Field.FieldName).AsString);
   1:
   begin
     TempStr:=FindParam('_Value=', Field.OPL);
+    RePlaseParams(TempStr);
+    FDCLForm.RePlaseVariables(TempStr);
+  end;
+  6:
+  begin
+    TempStr:=FindParam('_ValueIfEmpty=', Field.OPL);
     RePlaseParams(TempStr);
     FDCLForm.RePlaseVariables(TempStr);
   end;
@@ -11979,12 +12120,14 @@ begin
   Else
     KeyField:=NamePrefix+Field.FieldName;
 
-  FDCLForm.LocalVariables.NewVariable(KeyField);
+  FDCLForm.LocalVariables.NewVariableWithTest(KeyField);
 
   Edits[EditsCount].EditToVariables:=KeyField;
   FDCLForm.LocalVariables.Variables[KeyField]:=TempStr;
   Edits[EditsCount].Edit.Text:=TempStr;
   Field.Height:=Edits[EditsCount].Edit.Height;
+
+  Edits[EditsCount].DCLField:=Field;
 
   IncXYPos(EditTopStep, Edits[EditsCount].Edit.Width, Field);
 end;
@@ -12020,7 +12163,6 @@ begin
     FDCLLogOn.SetDBName(Lookups[l].LookupQuery);
     TranslateVal(TempStr);
     Lookups[l].LookupQuery.SQL.Text:=TempStr;
-    Lookups[l].LookupQuery.AfterScroll:=LookupDBScroll;
     try
       Lookups[l].LookupQuery.Open;
       Lookups[l].LookupQuery.Last;
@@ -12039,13 +12181,18 @@ begin
   Lookups[l].Lookup.Parent:=FieldPanel;
   Lookups[l].Lookup.Name:='LookUpField_'+IntToStr(l);
   Lookups[l].Lookup.Tag:=l;
+  {$IFnDEF FPC}
+  Lookups[l].Lookup.DropDownRows:=12;
+  {$ENDIF}
+
+  Lookups[l].NoDataField:=Field.NoDataField;
 
   Lookups[l].Lookup.ShowHint:=True;
   Lookups[l].Lookup.Hint:=Field.Hint;
 
   If FQuery.Active Then
   begin
-    If FindParam('NoDataField=', Field.OPL)<>'1' Then
+    If not Field.NoDataField Then
     begin
       If FieldExists(Field.FieldName, FQuery) Then
       begin
@@ -12072,29 +12219,27 @@ begin
     Lookups[l].Lookup.Width:=Field.Width
   Else
     Lookups[l].Lookup.Width:=EditWidth;
+
   Field.Height:=Lookups[l].Lookup.Height;
 
   TempStr:=FindParam('VariableName=', Field.OPL);
   If TempStr<>'' Then
   begin
-    FDCLLogOn.Variables.NewVariable(TempStr);
+    FDCLLogOn.Variables.NewVariableWithTest(TempStr);
     Lookups[l].LookupToVars:=TempStr;
   end;
 
   Lookups[l].Lookup.KeyField:=FindParam('Key=', Field.OPL);
   Lookups[l].Lookup.ListField:=FindParam('List=', Field.OPL);
 
-{$IFDEF FPC}
-  Lookups[l].Lookup.OnSelect:=LookupOnClick;
-{$ELSE}
-  Lookups[l].Lookup.OnClick:=LookupOnClick;
-{$ENDIF}
   TempStr:=FindParam('ModifyingEdit=', Field.OPL);
   If TempStr<>'' Then
     Lookups[l].ModifyEdits:=SortParams(TempStr, 1);
 
   TempStr:=FindParam('KeyValue=', Field.OPL);
-  Lookups[l].LookupQuery.First;
+
+  If (NoDataField) Then
+    Lookups[l].LookupQuery.First;
   If TempStr<>'' Then
   begin
     TranslateVal(TempStr);
@@ -12116,7 +12261,7 @@ begin
       end;
     If (TempStr<>'') Then
     begin
-      If (Not FForm.Showing) and (Not NoDataField) Then
+      //If (Not FForm.Showing) and (Not NoDataField) Then
         FForm.Show;
       Lookups[l].Lookup.KeyValue:=TempStr;
       If (Not NoDataField) and Query.CanModify Then
@@ -12125,9 +12270,17 @@ begin
           Query.Edit;
         FData.DataSet.FieldByName(Field.FieldName).AsInteger:=StrToIntEx(TempStr);
       end;
-      LookupOnClick(Lookups[l].Lookup);
     end;
   end;
+  LookupOnClick(Lookups[l].Lookup);
+
+  Lookups[l].LookupQuery.AfterScroll:=LookupDBScroll;
+
+{$IFDEF FPC}
+  Lookups[l].Lookup.OnSelect:=LookupOnClick;
+{$ELSE}
+  Lookups[l].Lookup.OnClick:=LookupOnClick;
+{$ENDIF}
 
   IncXYPos(EditTopStep, Lookups[l].Lookup.Width, Field);
 end;
@@ -12165,8 +12318,15 @@ begin
   LookupTables[l].DCLGrid.SetSQL(TempStr);
   LookupTables[l].DCLGrid.ReadOnly:=Field.ReadOnly;
   LookupTables[l].DCLGrid.DependField:=FindParam('DependField=', Field.OPL);
+  LookupTables[l].DCLGrid.NoDataField:=Field.NoDataField;
+
+  LookupTables[l].DCLGrid.MasterValueVariableName:=FindParam('VariableName=', Field.OPL);
+
+  if not Field.NoDataField then
   If FQuery.Active then
-    LookupTables[l].DCLGrid.MasterDataField:=Field.FieldName;
+    If LookupTables[l].DCLGrid.MasterDataField='' then
+      if FieldExists(LookupTables[l].DCLGrid.MasterDataField, FQuery) then
+        LookupTables[l].DCLGrid.MasterDataField:=Field.FieldName;
 
   LookupTables[l].DCLGrid.Open;
   LookupTables[l].DCLGrid.Show;
@@ -12305,7 +12465,7 @@ begin
       RollBars[l].Variable:=TempStr;
     end
     Else
-      FDCLLogOn.Variables.NewVariable(TempStr);
+      FDCLLogOn.Variables.NewVariableWithTest(TempStr);
   end;
 
   If FieldExists(Field.FieldName, Query) Then
@@ -12485,17 +12645,30 @@ end;
 procedure TDCLGrid.AfterInsert(Data: TDataSet);
 var
   v1, v2: Integer;
+  vv:String;
 begin
   If FUserLevelLocal<ulWrite Then
     Data.Cancel
   Else
   begin
     If DependField<>'' Then
-      If MasterDataField<>'' Then
+    Begin
+      if not NoDataField then
       begin
-        Data.FieldByName(DependField).AsString:=FDCLForm.CurrentQuery.FieldByName
-          (MasterDataField).AsString;
+        If MasterDataField<>'' Then
+        begin
+          Data.FieldByName(DependField).AsString:=FDCLForm.CurrentQuery.FieldByName
+            (MasterDataField).AsString;
+        end;
+      end
+      else
+      begin
+        if MasterValueVariableName<>'' then
+        begin
+          Data.FieldByName(DependField).AsString:=FDCLLogOn.Variables.GetVariableByName(MasterValueVariableName);
+        end;
       end;
+    End;
 
     ExecEvents(EventsInsert);
 
@@ -12590,6 +12763,7 @@ begin
       end;
   end;
   FDCLLogOn.NotifyForms(fnaRefresh);
+  ReFreshQuery
 end;
 
 procedure TDCLGrid.AfterRefresh(Data: TDataSet);
@@ -12807,7 +12981,6 @@ procedure TDCLGrid.ContextListKeyDown(Sender: TObject; var Key: Word; Shift: TSh
 var
   ComboNum: Integer;
   tmpQuery: TDCLDialogQuery;
-  tmpStr: String;
   Combo: TComboBox;
 begin
   ComboNum:=(Sender as TComponent).Tag;
@@ -12828,14 +13001,6 @@ begin
 
       Combo.Items.Clear;
 
-      tmpStr:=ContextLists[ComboNum].DataField;
-      if ContextLists[ComboNum].DataField<>'' then
-      begin
-        if not FieldExists(ContextLists[ComboNum].DataField, tmpQuery) then
-        begin
-          tmpStr:=tmpQuery.Fields[0].FieldName;
-        end;
-      end;
       If tmpQuery.RecordCount=1 Then
       begin
         if FieldExists(ContextLists[ComboNum].DataField, FQuery) then
@@ -13276,9 +13441,13 @@ begin
 
         If FindParam('ReadOnly=', FField.OPL)<>'' Then
         begin
-          // Убрать везде
           FField.ReadOnly:=StrToIntEx(FindParam('ReadOnly=', FField.OPL))=1;
         end;
+
+        If FindParam('NoDataField=', FField.OPL)='1' Then
+        Begin
+          FField.NoDataField:=True;
+        End;
 
         Case DisplayMode of
         dctFields, dctFieldsStep:
@@ -13323,7 +13492,7 @@ begin
             AddDateBox(FField);
           end;
 
-          If PosEx('DBCheckBox=', FieldCaptScrStr)<>0 Then
+          If (not FField.NoDataField) and (PosEx('DBCheckBox=', FieldCaptScrStr)<>0) Then
           begin
             AddDBCheckBox(FField);
           end
@@ -13360,7 +13529,6 @@ begin
           begin
             AddLookupTable(FField);
           end;
-
         end;
         dctMainGrid:
         begin
@@ -13489,14 +13657,14 @@ procedure TDCLGrid.EditOnEdit(Sender: TObject);
 var
   EdNamb: Word;
   l, k: Byte;
-  ch: Boolean;
+  ch, inFormat: Boolean;
   EdText: String;
 begin
   EdNamb:=(Sender as TEdit).Tag;
   Edits[EdNamb].ModifyEdit:=1;
   EdText:=(Sender as TEdit).Text;
 
-  If Edits[EdNamb].EditsToFloat Then
+  {If Edits[EdNamb].EditsToFloat Then
   begin
     ch:=False;
     l:=Length(EdText);
@@ -13508,48 +13676,79 @@ begin
       end;
     If ch Then
       (Sender as TEdit).Text:=EdText;
+  end;}
+
+  inFormat:=True;
+  case Edits[EdNamb].DCLField.FieldTypeFormat of
+    fftDigit:begin
+      if not IsDigits(EdText) then
+      begin
+        inFormat:=False;
+        Edits[EdNamb].ModifyEdit:=0;
+      end;
+    end;
+    fftTrim:Begin
+      EdText:=Trim(EdText);
+      (Sender as TEdit).Text:=EdText;
+    End;
   end;
 
+  if inFormat then
   // Update variables
-  FDCLForm.LocalVariables.Variables[Edits[EdNamb].EditToVariables]:=EdText;
+    FDCLForm.LocalVariables.Variables[Edits[EdNamb].EditToVariables]:=EdText;
 end;
 
 procedure TDCLGrid.EditOnFloatData(Sender: TObject; var Key: Char);
 var
   Text:String;
+  inFormat: Boolean;
+  EdNamb: Word;
 begin
   Text:=(Sender as TEdit).Text;
+  EdNamb:=(Sender as TEdit).Tag;
 
-  If Key=FloatDelimiterFrom Then
-    Key:=FloatDelimiterTo;
-  If (Key='/') or (Key='?') or (Key='<') then
-    Key:=FloatDelimiterTo;
-  If (Key='б') or (Key='Б') or (Key='ю') or (Key='Ю') then
-    Key:=FloatDelimiterTo;
+  case Edits[EdNamb].DCLField.FieldTypeFormat of
+  fftFloat:
+  begin
+    If Key=FloatDelimiterFrom Then
+      Key:=FloatDelimiterTo;
+    If (Key='/') or (Key='?') or (Key='<') then
+      Key:=FloatDelimiterTo;
+    If (Key='б') or (Key='Б') or (Key='ю') or (Key='Ю') then
+      Key:=FloatDelimiterTo;
 
-  Case Key of
-  // разрешаем ввод цифр
-  '0'..'9':Key:=Key;
-  // разрешаем ввод всего, что похоже на десятичный разделитель
-  '.', ',':
-  Begin
-    // запрещаем ввод более 1 десятичного разделителя
-    If Pos(FloatDelimiterTo, Text)=0 then
-      Key:=FloatDelimiterTo
+    Case Key of
+    // разрешаем ввод цифр
+    '0'..'9':Key:=Key;
+    // разрешаем ввод всего, что похоже на десятичный разделитель
+    '.', ',':
+    Begin
+      // запрещаем ввод более 1 десятичного разделителя
+      If Pos(FloatDelimiterTo, Text)=0 then
+        Key:=FloatDelimiterTo
+      Else key:=#0;
+    End;
+    '-':
+    Begin
+      // запрещаем ввод более 1 минуса
+      If (Pos('-', Text)=0) then
+        Key:='-'
+      Else key:=#0;
+    End;
+    // разрешаем использование клавиш BackSpace и Delete
+    #8:Key:=Key;
+    // "гасим" все прочие клавиши
     Else key:=#0;
-  End;
-  '-':
-  Begin
-    // запрещаем ввод более 1 минуса
-    If (Pos('-', Text)=0) then
-      Key:='-'
-    Else key:=#0;
-  End;
-  // разрешаем использование клавиш BackSpace и Delete
-  #8:Key:=Key;
-  // "гасим" все прочие клавиши
-  Else key:=#0;
-  End;
+    End;
+  end;
+  fftDigit:begin
+    if not IsDigits(Key) then
+    begin
+      inFormat:=False;
+      key:=#0;
+    end;
+  end;
+  end;
 end;
 
 procedure TDCLGrid.ExcludeNotAllowedOperation(Operation: TNotAllowedOperations);
@@ -14277,22 +14476,36 @@ begin
   v1:=Data.Tag;
   Look:=Lookups[v1].Lookup;
   If Assigned(Look) Then
-    FDCLLogOn.Variables.Variables[Lookups[v1].LookupToVars]:=
-      TrimRight(Lookups[v1].LookupQuery.FieldByName(Look.KeyField).AsString);
+  Begin
+    if not Lookups[v1].NoDataField then
+    begin
+      FDCLLogOn.Variables.Variables[Lookups[v1].LookupToVars]:=
+        TrimRight(Lookups[v1].LookupQuery.FieldByName(Look.KeyField).AsString);
+    end;
+  End;
 end;
 
 procedure TDCLGrid.LookupOnClick(Sender: TObject);
 var
-  ListField, tmpSQL1: String;
+  KeyFiled, ListField, tmpSQL1: String;
   v4: Integer;
 begin
   v4:=(Sender as TDBLookupComboBox).Tag;
-  ListField:=(Sender as TDBLookupComboBox).ListField;
 
   If Lookups[v4].ModifyEdits<>'' Then
   begin
+    ListField:=(Sender as TDBLookupComboBox).ListField;
+
     tmpSQL1:=TrimRight(Lookups[v4].LookupQuery.FieldByName(ListField).AsString);
     (FieldPanel.FindComponent(Lookups[v4].ModifyEdits) as TEdit).Text:=tmpSQL1;
+  end;
+
+  if Lookups[v4].LookupToVars<>'' then
+  begin
+    KeyFiled:=(Sender as TDBLookupComboBox).KeyField;
+
+    FDCLLogOn.Variables.Variables[Lookups[v4].LookupToVars]:=
+      TrimRight(Lookups[v4].LookupQuery.FieldByName(KeyFiled).AsString);
   end;
 end;
 
@@ -14362,6 +14575,16 @@ begin
   ExecEvents(EventsDelete);
 
   SetDataStatus(dssChanged);
+end;
+
+procedure TDCLGrid.OnNotCheckClick(Sender: TObject);
+var
+  i:Integer;
+begin
+  i:=(Sender as TComponent).Tag;
+  DBFilters[i].NotFilter:=(Sender as TCheckBox).Checked;
+
+  OpenQuery(QueryBuilder(0, 0));
 end;
 
 procedure TDCLGrid.Open;
@@ -14482,7 +14705,7 @@ var
     Query1String: String;
   FN, FFactor: Word;
 
-  function ConstructQueryString(ExemplStr, FilterField: String; Upper, NotLike, Partial: Boolean;
+  function ConstructQueryString(ExemplStr, FilterField: String; Upper, NotLike, Partial, NotWhere: Boolean;
     Between: Byte; Exempl2: String): String;
   var
     Delimiter, Prefix, Postfix, UpperPrefix, UpperPostfix, WhereStr, CondStr: String;
@@ -14511,6 +14734,11 @@ var
       begin
         UpperPrefix:=GPT.UpperString;
         UpperPostfix:=GPT.UpperStringEnd;
+        If NotWhere then
+        begin
+          Prefix:='!=';
+        end;
+
         BetweenFormat;
       end;
       end;
@@ -14522,6 +14750,10 @@ var
       ftString, ftFixedChar, ftWideString:
       begin
         Prefix:=' like ';
+        If NotWhere then
+        begin
+          Prefix:=' not like ';
+        end;
         Postfix:='%';
         if Partial then
         Begin
@@ -14621,7 +14853,7 @@ begin
                 Exempl2:=DBFilters[DBFilters[FN].Between].FilterString;
 
               WhereStr:=WhereStr+' '+ConstructQueryString(ExeplStr, QFilterField,
-                Not DBFilters[FN].CaseC, DBFilters[FN].NotLike, DBFilters[FN].Partial,
+                Not DBFilters[FN].CaseC, DBFilters[FN].NotLike, DBFilters[FN].Partial, DBFilters[FN].NotFilter,
                 DBFilters[FN].Between, Exempl2);
             end;
           end
@@ -14746,7 +14978,7 @@ begin
   If Length(Edits)>0 Then
     For v1:=1 to Length(Edits) do
     begin
-      If Edits[v1-1].EditsType in [fbtOutBox, fbtEditBox] Then
+      If (Edits[v1-1].EditsType in [fbtOutBox, fbtEditBox]) and not Edits[v1-1].DCLField.NoDataField Then
       begin
         If FieldExists(Edits[v1-1].EditsToFields, FQuery) Then
           Edits[v1-1].Edit.Text:=TrimRight(FQuery.FieldByName(Edits[v1-1].EditsToFields).AsString);
@@ -14766,7 +14998,7 @@ begin
   If Length(CheckBoxes)>0 Then
     For v1:=1 to Length(CheckBoxes) do
     begin
-      If FieldExists(CheckBoxes[v1-1].CheckBoxToFields, FQuery) Then
+      If (not CheckBoxes[v1-1].NoDataField) and FieldExists(CheckBoxes[v1-1].CheckBoxToFields, FQuery) Then
       begin
         TmpStr:=TrimRight(FQuery.FieldByName(CheckBoxes[v1-1].CheckBoxToFields).AsString);
         If (TmpStr='0')or(TmpStr='') Then
@@ -14779,7 +15011,7 @@ begin
   If Length(DateBoxes)>0 Then
     For v1:=1 to Length(DateBoxes) do
     begin
-      If not DateBoxes[v1-1].NoDataField and FieldExists(DateBoxes[v1-1].DateBoxToFields, FQuery) Then
+      If (not DateBoxes[v1-1].NoDataField) and FieldExists(DateBoxes[v1-1].DateBoxToFields, FQuery) Then
         DateBoxes[v1-1].DateBox.Date:=FQuery.FieldByName(DateBoxes[v1-1].DateBoxToFields)
           .AsDateTime;
     end;
@@ -16448,7 +16680,7 @@ begin
     begin
       If PosEx('DeclareVariable=', InitSkrypts[LocalVar1])<>0 Then
       begin
-        FDCLLogOn.Variables.NewVariable(FindParam('DeclareVariable=', InitSkrypts[LocalVar1]));
+        FDCLLogOn.Variables.NewVariableWithTest(FindParam('DeclareVariable=', InitSkrypts[LocalVar1]));
       end;
 
       If PosEx('GrabValueList=', InitSkrypts[LocalVar1])<>0 Then
@@ -16466,7 +16698,7 @@ begin
           GrabLabel.Caption:=FindParam('GrabValueList=', InitSkrypts[LocalVar1]);
 
         tmpSQL:=FindParam('GrabValueList=', InitSkrypts[LocalVar1]);
-        FDCLLogOn.Variables.NewVariable(tmpSQL);
+        FDCLLogOn.Variables.NewVariableWithTest(tmpSQL);
         GrabValueList:=TComboBox.Create(GrabValueForm);
         GrabValueList.Parent:=GrabValueForm;
         GrabValueList.Name:='GrabValList_'+IntToStr(LocalVar1);

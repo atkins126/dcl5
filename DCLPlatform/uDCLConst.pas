@@ -39,7 +39,7 @@ DefaultLibraryLocation='libfbclient.so';
 {$IFDEF SQLdb}
   DBEngineType='SQLdb (Universal)';
 {$ENDIF}
-  Ver='10.2.2.0';
+  Ver='10.2.7.1';
   VersionS='$VersionSignature$'+Ver+'$';
 
   CompotableVersion='9.1.129.309';
@@ -122,7 +122,8 @@ DefaultLibraryLocation='libfbclient.so';
   ButtonPanelHeight=ButtonsTop+IncPanelHeight;
   FullButtonWidth=ButtonWidth+ButtonsInterval;
   ButtonLeftLimit=FullButtonWidth*ButtonsInLine;
-  ToolPanelHeight=FilterTop+EditHeight+LabelHeight;
+  NotCheckHeight=8;
+  ToolPanelHeight=FilterTop+EditHeight+LabelHeight+LabelTopInterval+NotCheckHeight;
 
   FieldDownStep=LabelHeight+LabelTopInterval;
   EditTopStep=EditHeight+FieldDownStep;
@@ -370,6 +371,7 @@ Type
   TDCLFormCloseAction=(fcaNone, fcaClose, fcaInProcess);
   TFastReportsScriptLanguage=(fslPascal, fslBasic, fslCppScript, fslJScript);
   TINIType=(itNone, itFormPos, itBookmarkMenu);
+  TFieldFormat=(fftNone, fftDigit, fftDate, fftTime, fftDateTime, fftTrim, fftFloat);
 
 const
   ReleaseStatus=rsBetta;

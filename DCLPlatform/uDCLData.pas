@@ -68,6 +68,7 @@ RField=record
   IsFieldWidth, IsFieldHeight, CurrentEdit, ReadOnly, NoDataField: Boolean;
   Top, Left, Width, Height, StepLeft: Word;
   DataFieldType:TDataFieldTypeType;
+  FieldTypeFormat:TFieldFormat;
 end;
 
 RCalendar=record
@@ -128,7 +129,7 @@ end;
 
 TDBFilter=record
   FilterNum, Between, WaitForKey: Integer;
-  Partial, NotLike, CaseC: Boolean;
+  Partial, NotLike, CaseC, NotFilter: Boolean;
   FilterName, FilterString, Field, KeyField, ListField: String;
   Lookup:TDBLookupComboBox;
   Edit:TEdit;
@@ -138,6 +139,7 @@ TDBFilter=record
   FilterKey, VarName, Caption, SQL, KeyValue: String;
   FilterChengFlag:Integer;
   Width, MaxLength: Word;
+  NotCheck: TCheckBox;
 end;
 
 TDCLEdits=record
@@ -148,7 +150,7 @@ TDCLEdits=record
   EditsToGetResultFields:RDependFind;
   PostModes, ModifyEdit: Byte;
   EditToVariables:String;
-  EditsToFloat:Boolean;
+  DCLField:RField;
 end;
 
 TDateBox=record
@@ -161,6 +163,7 @@ end;
 RCheckBox=record
   CheckBox: TCheckBox;
   CheckBoxToVars, CheckBoxToFields: string;
+  NoDataField:Boolean;
 end;
 
 RLookups=record
@@ -168,7 +171,7 @@ RLookups=record
   LookupQuery:TDCLDialogQuery;
   LookupToVars:String;
   LookupData:TDataSource;
-  // GetValues:RGetValueRec;
+  NoDataField:Boolean;
   ModifyEdits:String;
 end;
 
