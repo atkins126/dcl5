@@ -30,8 +30,7 @@ Function GetTextByXY(var Sheet, Cell: Variant; Const row, col: Integer):String;
 Function FileNameToURL(FileName: String): Variant;
 Function MakePropertyValue(ServiceManager, PropertyName, PropertyValue: Variant): Variant;
 {$ENDIF}
-function GetPossibleOffice(DocType: TDocumentType; OfficeType: TOfficeFormat=ofPossible)
-  : TOfficeFormat;
+function GetPossibleOffice(DocType: TDocumentType; OfficeType, SettingOffice: TOfficeFormat): TOfficeFormat;
 Function ConvertOfficeType(OfficeType: String): TOfficeFormat;
 Function ConvertDocumentType(OfficeType: String): TOfficeDocumentFormat;
 Function GetDocumentType(FileName: String): TOfficeDocumentFormat;
@@ -48,10 +47,9 @@ var
 {$ENDIF}
 
 {$IFDEF UNIX}
-function GetPossibleOffice(DocType: TDocumentType; OfficeType: TOfficeDocumentFormat=odtPossible)
-  : TOfficeDocumentFormat;
+function GetPossibleOffice(DocType: TDocumentType; OfficeType, SettingOffice: TOfficeFormat): TOfficeFormat;
 begin
-  Result:=odtNone;
+  Result:=ofNone;
 end;
 {$ENDIF}
 
@@ -80,25 +78,24 @@ Var
   Ext: String;
 Begin
   Ext:=ExtractFileExt(FileName);
-  if (LowerCase(Ext)='.xlsx') or (LowerCase(Ext)='.xlsx') then
+  if (LowerCase(Ext)='.xlsx') or (LowerCase(Ext)='.xltx') or (LowerCase(Ext)='.docx') or (LowerCase(Ext)='.dotx') then
      Result:=odfMSO2007
   else
-  if (LowerCase(Ext)='.xlt') or (LowerCase(Ext)='.xlt') then
+  if (LowerCase(Ext)='.xls') or (LowerCase(Ext)='.xlt') or (LowerCase(Ext)='.doc') or (LowerCase(Ext)='.dot') then
      Result:=odfMSO97
   else
-    If (LowerCase(Ext)='.ods') or (LowerCase(Ext)='.ots') then
+    If (LowerCase(Ext)='.ods') or (LowerCase(Ext)='.ots') or (LowerCase(Ext)='.odt') or (LowerCase(Ext)='.ott') then
      Result:=odfOO;
 End;
 
 {$IFDEF MSWINDOWS}
-function GetPossibleOffice(DocType: TDocumentType; OfficeType: TOfficeFormat=ofPossible)
-  : TOfficeFormat;
+function GetPossibleOffice(DocType: TDocumentType; OfficeType, SettingOffice: TOfficeFormat): TOfficeFormat;
 begin
   Case DocType of
   dtSheet:
   If OfficeType=ofPossible then
   Begin
-    If IsExcelInstall then
+    If IsExcelInstall and (SettingOffice<>ofOO) then
       Result:=ofMSO
     else if IsOOInstall then
       Result:=ofOO
@@ -110,7 +107,7 @@ begin
   dtText:
   If OfficeType=ofPossible then
   Begin
-    If IsWordInstall then
+    If IsWordInstall and (SettingOffice<>ofOO) then
       Result:=ofMSO
     else if IsOOInstall then
       Result:=ofOO
@@ -372,7 +369,7 @@ Begin
   MsWord.Selection.Goto(What, Which, Count, Name);
 {$ENDIF}
   C:=Length(info);
-  MsWord.Selection.Delete(EmptyParam, C);
+  //MsWord.Selection.Delete(EmptyParam, C);
 
   MsWord.Selection.Font.Bold:=_bold;
   MsWord.Selection.Font.italic:=_italic;
